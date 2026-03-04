@@ -186,6 +186,42 @@ pub struct SearchResult {
     pub score: f32,
 }
 
+// ——————————————————————————————————————————————
+// 分类统计
+// ——————————————————————————————————————————————
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CategoryStat {
+    pub category: String,
+    pub file_count: i64,
+    pub total_size: i64,
+}
+
+/// IPC: 按文件分类统计（用于 Dashboard 图表）
+#[tauri::command]
+pub async fn get_category_stats(state: State<'_, AppState>) -> Result<Vec<CategoryStat>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db.prepare(
+        "SELECT COALESCE(category, '其他') AS cat, COUNT(*) AS cnt, COALESCE(SUM(size), 0) AS sz
+         FROM file_index
+         GROUP BY cat
+         ORDER BY sz DESC"
+    ).map_err(|e| e.to_string())?;
+
+    let stats = stmt.query_map([], |row| {
+        Ok(CategoryStat {
+            category: row.get(0)?,
+            file_count: row.get(1)?,
+            total_size: row.get(2)?,
+        })
+    })
+    .map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+
+    Ok(stats)
+}
+
 /// IPC: 启动文件监听（自动增量更新索引）
 #[tauri::command]
 pub async fn watch_directory(

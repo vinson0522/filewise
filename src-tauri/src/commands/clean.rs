@@ -233,6 +233,35 @@ pub async fn execute_clean(paths: Vec<String>) -> Result<CleanResult, String> {
             continue;
         }
 
+        // 空文件夹批量清理
+        if dir_path == "__empty_dirs__" {
+            if let Ok(home) = std::env::var("USERPROFILE") {
+                let roots = [
+                    PathBuf::from(&home).join("Desktop"),
+                    PathBuf::from(&home).join("Documents"),
+                    PathBuf::from(&home).join("Downloads"),
+                ];
+                for root in &roots {
+                    if !root.exists() { continue; }
+                    // 从最深层往上扫删
+                    let entries: Vec<_> = WalkDir::new(root).min_depth(1).max_depth(8)
+                        .into_iter().filter_map(|e| e.ok())
+                        .filter(|e| e.file_type().is_dir())
+                        .collect();
+                    for entry in entries.iter().rev() {
+                        if let Ok(mut rd) = std::fs::read_dir(entry.path()) {
+                            if rd.next().is_none() {
+                                if std::fs::remove_dir(entry.path()).is_ok() {
+                                    deleted_count += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
         let p = Path::new(dir_path);
         if !p.exists() { continue; }
 

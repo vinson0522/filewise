@@ -225,6 +225,10 @@ export default function SearchPage() {
                     <div style={{ fontSize: 12, color: '#8c8c8c',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dir}</div>
                   </div>
+                  {r.category && (
+                    <span style={{ fontSize: 11, padding: '1px 8px', borderRadius: 4, flexShrink: 0,
+                      background: '#f0f5ff', color: '#1677ff', border: '1px solid #d6e4ff' }}>{r.category}</span>
+                  )}
                   <div style={{ textAlign: 'right', flexShrink: 0, marginRight: 8 }}>
                     <div style={{ fontSize: 13, color: '#595959' }}>{formatSize(r.size)}</div>
                     <div style={{ fontSize: 12, color: '#bfbfbf' }}>{formatDate(r.modified_at)}</div>

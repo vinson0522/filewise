@@ -54,6 +54,16 @@ export async function quarantineFile(path: string): Promise<OperationResult> {
 
 // ===================== 索引 / 搜索 =====================
 
+export interface CategoryStat {
+  category: string;
+  file_count: number;
+  total_size: number;
+}
+
+export async function getCategoryStats(): Promise<CategoryStat[]> {
+  return safeInvoke<CategoryStat[]>('get_category_stats');
+}
+
 export async function getIndexStats(): Promise<IndexStats> {
   return safeInvoke<IndexStats>('get_index_stats');
 }

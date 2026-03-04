@@ -12,9 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "filewise",
-        "width": 800,
-        "height": 600
+        "title": "FileWise — AI 智能文件助手",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600,
+        "center": true
       }
     ],
     "security": {

@@ -4,8 +4,8 @@ import {
   AppstoreOutlined, ClearOutlined,
   CopyOutlined, DeleteOutlined, SearchOutlined,
 } from '@ant-design/icons';
-import { getDiskInfo, getIndexStats, getHealthScore } from '../services/file.service';
-import type { HealthReport } from '../services/file.service';
+import { getDiskInfo, getIndexStats, getHealthScore, getCategoryStats } from '../services/file.service';
+import type { HealthReport, CategoryStat } from '../services/file.service';
 import { formatSize, formatDate } from '../utils/path.util';
 import { useAppStore } from '../stores/useAppStore';
 
@@ -27,6 +27,12 @@ export default function DashboardPage() {
   const { data: health } = useQuery<HealthReport>({
     queryKey: ['health-score'],
     queryFn: getHealthScore,
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: catStats = [] } = useQuery<CategoryStat[]>({
+    queryKey: ['category-stats'],
+    queryFn: getCategoryStats,
     staleTime: 5 * 60_000,
   });
 
@@ -128,6 +134,41 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* File Distribution */}
+        <div className="section-card">
+          <div className="section-card-header"><h3>文件分布</h3></div>
+          <div className="section-card-body">
+            {catStats.length === 0 ? (
+              <div style={{ color: '#bfbfbf', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>建立索引后显示</div>
+            ) : (() => {
+              const totalSize = catStats.reduce((s, c) => s + c.total_size, 0) || 1;
+              const COLORS: Record<string, string> = {
+                '文档': '#1677ff', '表格': '#52c41a', '演示文稿': '#13c2c2',
+                '图片': '#722ed1', '视频': '#eb2f96', '音频': '#fa541c',
+                '代码': '#faad14', '压缩包': '#a0d911', '安装包': '#f5222d',
+                '数据库': '#fa8c16', '其他': '#8c8c8c',
+              };
+              return catStats.slice(0, 8).map(c => {
+                const pct = Math.round(c.total_size / totalSize * 100);
+                const color = COLORS[c.category] ?? '#8c8c8c';
+                return (
+                  <div className="disk-bar-wrap" key={c.category}>
+                    <div className="disk-bar-label">
+                      <span style={{ fontWeight: 500 }}>{c.category}</span>
+                      <span>{c.file_count.toLocaleString()} 个 &nbsp; {formatSize(c.total_size)} ({pct}%)</span>
+                    </div>
+                    <div className="disk-bar">
+                      <div className="disk-bar-fill" style={{ width: `${Math.max(pct, 1)}%`, background: color }} />
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid-2 mb-20">
         {/* Quick Actions */}
         <div className="section-card">
           <div className="section-card-header"><h3>快捷操作</h3></div>

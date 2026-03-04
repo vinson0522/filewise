@@ -3,10 +3,10 @@ import { CameraOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listSnapshots, restoreSnapshot, deleteSnapshot,
-  listQuarantine, restoreQuarantine, listAuditLog,
+  listQuarantine, restoreQuarantine, listAuditLog, getIndexStats,
 } from '../services/file.service';
 import type { AuditEntry } from '../services/file.service';
-import type { SnapshotInfo, QuarantineItem } from '../types';
+import type { SnapshotInfo, QuarantineItem, IndexStats } from '../types';
 import { formatDate, formatSize } from '../utils/path.util';
 
 export default function ReportPage() {
@@ -30,6 +30,11 @@ export default function ReportPage() {
   const { data: quarantineItems = [], isLoading: loadingQuar } = useQuery<QuarantineItem[]>({
     queryKey: ['quarantine'],
     queryFn: listQuarantine,
+  });
+
+  const { data: indexStats } = useQuery<IndexStats>({
+    queryKey: ['index-stats'],
+    queryFn: getIndexStats,
   });
 
   const restoreMut = useMutation({
@@ -59,10 +64,10 @@ export default function ReportPage() {
 
       <div className="grid-4 mb-20">
         {[
-          { label: '快照总数', value: String(snapshots.length), sub: '可随时恢复' },
-          { label: '可恢复操作', value: String(snapshots.filter(s => s.status === 'active').length), sub: '待恢复快照' },
-          { label: '已恢复', value: '0', sub: '本次会话' },
-          { label: '索引文件', value: '--', sub: '前往搜索页扫描' },
+          { label: '快照总数',   value: String(snapshots.length), sub: '可随时恢复' },
+          { label: '隔离文件',   value: String(quarantineItems.length), sub: '30天内可恢复' },
+          { label: '操作记录',   value: String(auditLog.length), sub: '审计日志条数' },
+          { label: '索引文件',   value: indexStats ? indexStats.total_files.toLocaleString() : '--', sub: indexStats ? formatSize(indexStats.total_size) : '前往搜索页建立索引' },
         ].map(s => (
           <div className="stat-card" key={s.label}>
             <div className="stat-label">{s.label}</div>
