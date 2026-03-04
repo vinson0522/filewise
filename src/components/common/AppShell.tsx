@@ -7,8 +7,13 @@ import {
 } from '@ant-design/icons';
 import { useAppStore } from '../../stores/useAppStore';
 import type { PageKey } from '../../types';
-import DashboardPage from '../../pages/DashboardPage';
-import PlaceholderPage from './PlaceholderPage';
+import DashboardPage  from '../../pages/DashboardPage';
+import OrganizePage   from '../../pages/OrganizePage';
+import CleanPage      from '../../pages/CleanPage';
+import SearchPage     from '../../pages/SearchPage';
+import ChatPage       from '../../pages/ChatPage';
+import ReportPage     from '../../pages/ReportPage';
+import SettingsPage   from '../../pages/SettingsPage';
 import '../../styles/app-shell.css';
 
 interface NavItem {
@@ -30,12 +35,12 @@ const NAV_ITEMS: NavItem[] = [
 
 const PAGE_MAP: Record<PageKey, React.ReactNode> = {
   dashboard: <DashboardPage />,
-  organize:  <PlaceholderPage title="智能整理" desc="AI 自动分析文件内容，智能分类归档" />,
-  clean:     <PlaceholderPage title="智能清理" desc="安全释放磁盘空间，所有操作可撤销" />,
-  search:    <PlaceholderPage title="智能搜索" desc="自然语言搜索，支持全文检索" />,
-  chat:      <PlaceholderPage title="AI 助手"  desc="用自然语言管理你的文件" />,
-  report:    <PlaceholderPage title="操作报告" desc="查看历史操作记录与空间变化" />,
-  settings:  <PlaceholderPage title="系统设置" desc="配置 AI 模型、监控规则与个人偏好" />,
+  organize:  <OrganizePage />,
+  clean:     <CleanPage />,
+  search:    <SearchPage />,
+  chat:      <ChatPage />,
+  report:    <ReportPage />,
+  settings:  <SettingsPage />,
 };
 
 export default function AppShell() {
