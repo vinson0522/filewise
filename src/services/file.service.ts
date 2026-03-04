@@ -30,12 +30,15 @@ export async function getDiskInfo(): Promise<DiskInfo[]> {
 
 // ===================== 文件操作 =====================
 
-export async function moveFiles(operations: MoveOperation[]): Promise<OperationResult> {
+export async function moveFiles(
+  operations: MoveOperation[],
+  description?: string,
+): Promise<OperationResult> {
   for (const op of operations) {
     const { valid, reason } = validatePath(op.source);
     if (!valid) throw new Error(`来源路径无效: ${reason}`);
   }
-  return safeInvoke<OperationResult>('move_files', { operations });
+  return safeInvoke<OperationResult>('move_files', { operations, description });
 }
 
 export async function quarantineFile(path: string): Promise<OperationResult> {

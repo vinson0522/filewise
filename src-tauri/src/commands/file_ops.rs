@@ -1,7 +1,12 @@
 use crate::security::PathGuard;
 use crate::engine::scanner::{scan_shallow, FileEntry};
+use crate::engine::hasher::blake3_file;
+use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use sysinfo::Disks;
+use tauri::State;
+use chrono::Utc;
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScanOptions {
@@ -82,9 +87,13 @@ pub struct DiskInfo {
     pub fs_type: String,
 }
 
-/// IPC: 安全移动文件（事务性，附完整性校验）
+/// IPC: 安全移动文件（事务性 + 快照 + BLAKE3 完整性校验）
 #[tauri::command]
-pub async fn move_files(operations: Vec<MoveOperation>) -> Result<OperationResult, String> {
+pub async fn move_files(
+    operations: Vec<MoveOperation>,
+    state: State<'_, AppState>,
+    description: Option<String>,
+) -> Result<OperationResult, String> {
     let guard = PathGuard::new();
 
     // 1. 预验证所有路径
@@ -92,7 +101,6 @@ pub async fn move_files(operations: Vec<MoveOperation>) -> Result<OperationResul
         let src = std::path::PathBuf::from(&op.source);
         let dst = std::path::PathBuf::from(&op.target);
         guard.validate(&src).map_err(|e| e.to_string())?;
-        // 目标父目录验证
         if let Some(parent) = dst.parent() {
             if parent.exists() {
                 guard.validate(parent).map_err(|e| e.to_string())?;
@@ -103,22 +111,89 @@ pub async fn move_files(operations: Vec<MoveOperation>) -> Result<OperationResul
         }
     }
 
-    // 2. 执行移动（TODO: 事务性实现 + 快照）
-    let mut processed = 0;
+    // 2. 操作前计算所有源文件的哈希（用于完整性校验和快照）
+    let mut src_hashes: Vec<String> = Vec::new();
     for op in &operations {
+        let hash = blake3_file(std::path::Path::new(&op.source)).await
+            .map_err(|e| format!("计算哈希失败 {}: {}", op.source, e))?;
+        src_hashes.push(hash);
+    }
+
+    // 3. 写入快照记录（操作前状态，可用于撤销）
+    let snapshot_id = Uuid::new_v4().to_string();
+    let now = Utc::now().timestamp();
+    let snapshot_ops = serde_json::to_string(&operations).unwrap_or_default();
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.execute(
+            "INSERT INTO snapshots (id, created_at, description, operations, status)
+             VALUES (?1, ?2, ?3, ?4, 'active')",
+            rusqlite::params![
+                snapshot_id,
+                now,
+                description.as_deref().unwrap_or("文件移动"),
+                snapshot_ops,
+            ],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    // 4. 事务性移动：失败则回滚已完成的操作
+    let mut completed: Vec<&MoveOperation> = Vec::new();
+    for (i, op) in operations.iter().enumerate() {
         let src = std::path::Path::new(&op.source);
         let dst = std::path::Path::new(&op.target);
+
+        // 创建目标目录
         if let Some(parent) = dst.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                // 回滚
+                for done in &completed {
+                    let _ = std::fs::rename(&done.target, &done.source);
+                }
+                format!("创建目标目录失败: {}", e)
+            })?;
         }
-        std::fs::rename(src, dst).map_err(|e| e.to_string())?;
-        processed += 1;
+
+        // 移动文件
+        std::fs::rename(src, dst).map_err(|e| {
+            for done in &completed {
+                let _ = std::fs::rename(&done.target, &done.source);
+            }
+            format!("移动失败 {}: {}", op.source, e)
+        })?;
+
+        // 5. 完整性校验：比对移动后的哈希
+        let dst_hash = blake3_file(dst).await.unwrap_or_default();
+        if dst_hash != src_hashes[i] {
+            // 哈希不匹配，回滚全部
+            let _ = std::fs::rename(dst, src);
+            for done in &completed {
+                let _ = std::fs::rename(&done.target, &done.source);
+            }
+            return Err(format!("完整性校验失败，操作已回滚: {}", op.source));
+        }
+
+        completed.push(op);
+    }
+
+    // 6. 写审计日志
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let _ = db.execute(
+            "INSERT INTO audit_log (ts, action, path, detail, result) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                now, "move_files",
+                operations.first().map(|o| o.source.as_str()).unwrap_or(""),
+                format!("移动 {} 个文件，快照 {}", completed.len(), snapshot_id),
+                "success",
+            ],
+        );
     }
 
     Ok(OperationResult {
         success: true,
-        processed,
-        message: format!("成功移动 {} 个文件", processed),
+        processed: completed.len(),
+        message: format!("成功移动 {} 个文件，快照ID: {}", completed.len(), &snapshot_id[..8]),
     })
 }
 

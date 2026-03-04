@@ -1,5 +1,9 @@
-import { Button, Tag } from 'antd';
+import { Button, Tag, Spin, message } from 'antd';
 import { CameraOutlined } from '@ant-design/icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { listSnapshots, restoreSnapshot, deleteSnapshot } from '../services/file.service';
+import type { SnapshotInfo } from '../types';
+import { formatDate } from '../utils/path.util';
 
 const HISTORY = [
   { time: '03-04 14:30', type: '智能整理', target: '桌面',   result: '47 个文件已归档', undone: false },
@@ -10,46 +14,56 @@ const HISTORY = [
   { time: '03-01 11:00', type: '大文件清理', target: 'E:/',  result: '释放 8.5 GB',    undone: false },
 ];
 
-const SNAPSHOTS = [
-  { time: '03-04 14:30', desc: '桌面整理',   size: '2.3 MB', files: 47 },
-  { time: '03-04 10:15', desc: '系统清理',   size: '1.1 MB', files: 1243 },
-  { time: '03-03 09:00', desc: '自动归档',   size: '0.5 MB', files: 8 },
-  { time: '03-02 15:20', desc: '项目整理',   size: '4.2 MB', files: 126 },
-  { time: '03-01 11:00', desc: '大文件清理', size: '0.8 MB', files: 6 },
-];
-
 export default function ReportPage() {
+  const qc = useQueryClient();
   const typeColor = (t: string) =>
     t.includes('整理') ? 'blue' : t.includes('清理') ? 'green' : 'default';
+
+  const { data: snapshots = [], isLoading: loadingSnaps } = useQuery<SnapshotInfo[]>({
+    queryKey: ['snapshots'],
+    queryFn: listSnapshots,
+  });
+
+  const restoreMut = useMutation({
+    mutationFn: (id: string) => restoreSnapshot(id),
+    onSuccess: (msg) => { message.success(msg); qc.invalidateQueries({ queryKey: ['snapshots'] }); },
+    onError: (e: Error) => message.error('恢复失败：' + e.message),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteSnapshot(id),
+    onSuccess: (msg) => { message.success(msg); qc.invalidateQueries({ queryKey: ['snapshots'] }); },
+    onError: (e: Error) => message.error('删除失败：' + e.message),
+  });
 
   return (
     <div>
       <div className="page-header">
         <h2>操作报告</h2>
-        <p>查看历史操作记录与空间变化</p>
+        <p>查看历史操作记录与快照管理</p>
       </div>
 
       <div className="grid-4 mb-20">
         {[
-          { label: '本月整理文件', value: '1,247', sub: '47 次操作' },
-          { label: '本月释放空间', value: '28.5 GB', sub: '12 次清理' },
-          { label: '撤销操作',     value: '3',       sub: '100% 恢复' },
-          { label: '平均准确率',   value: '94%',     sub: '优秀', color: '#52c41a' },
+          { label: '快照总数', value: String(snapshots.length), sub: '可随时恢复' },
+          { label: '可恢复操作', value: String(snapshots.filter(s => s.status === 'active').length), sub: '待恢复快照' },
+          { label: '已恢复', value: '0', sub: '本次会话' },
+          { label: '索引文件', value: '--', sub: '前往搜索页扫描' },
         ].map(s => (
           <div className="stat-card" key={s.label}>
             <div className="stat-label">{s.label}</div>
-            <div><span className="stat-value" style={s.color ? { color: s.color } : {}}>{s.value}</span></div>
-            <div className="stat-extra" style={s.color ? { color: s.color } : {}}>{s.sub}</div>
+            <div><span className="stat-value">{s.value}</span></div>
+            <div className="stat-extra">{s.sub}</div>
           </div>
         ))}
       </div>
 
       <div className="grid-2">
-        {/* Operation history */}
+        {/* 操作历史（保留 mock，待后续接入审计日志） */}
         <div className="section-card">
           <div className="section-card-header">
             <h3>操作历史</h3>
-            <Button size="small">导出</Button>
+            <span style={{ fontSize: 12, color: '#8c8c8c' }}>最近记录</span>
           </div>
           <div style={{ padding: '8px 20px' }}>
             {HISTORY.map((r, i) => (
@@ -68,25 +82,35 @@ export default function ReportPage() {
           </div>
         </div>
 
-        {/* Snapshots */}
+        {/* 快照管理（真实数据） */}
         <div className="section-card">
           <div className="section-card-header">
             <h3>快照管理</h3>
-            <span style={{ fontSize: 12, color: '#8c8c8c' }}>共 {SNAPSHOTS.length} 个快照</span>
+            <span style={{ fontSize: 12, color: '#8c8c8c' }}>
+              共 {snapshots.length} 个快照
+            </span>
           </div>
           <div style={{ padding: '8px 20px' }}>
-            {SNAPSHOTS.map((s, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: i < SNAPSHOTS.length - 1 ? '1px solid #fafafa' : 'none', fontSize: 13 }}>
+            {loadingSnaps ? (
+              <div style={{ textAlign: 'center', padding: '30px 0' }}><Spin /></div>
+            ) : snapshots.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px 0', color: '#bfbfbf', fontSize: 13 }}>
+                暂无快照，执行文件移动操作后会自动创建
+              </div>
+            ) : snapshots.map((s, i) => (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: i < snapshots.length - 1 ? '1px solid #fafafa' : 'none', fontSize: 13 }}>
                 <CameraOutlined style={{ color: '#8c8c8c', marginRight: 10 }} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: '#262626', fontWeight: 500 }}>{s.desc}</div>
+                  <div style={{ color: '#262626', fontWeight: 500 }}>{s.description || '文件操作'}</div>
                   <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 2 }}>
-                    {s.time} | {s.files} 个文件 | {s.size}
+                    {formatDate(s.created_at)} | {s.file_count} 个文件 | ID: {s.id.slice(0, 8)}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <Button size="small">恢复</Button>
-                  <Button size="small" danger>删除</Button>
+                  <Button size="small" loading={restoreMut.isPending}
+                    onClick={() => restoreMut.mutate(s.id)}>恢复</Button>
+                  <Button size="small" danger loading={deleteMut.isPending}
+                    onClick={() => deleteMut.mutate(s.id)}>删除</Button>
                 </div>
               </div>
             ))}
