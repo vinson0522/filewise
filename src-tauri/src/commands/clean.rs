@@ -136,6 +136,81 @@ pub async fn scan_clean_targets() -> Result<Vec<CleanTarget>, String> {
         }
     }
 
+    // 8. 开发缓存（node_modules / .gradle / __pycache__ / .tox 等）
+    if let Ok(home) = std::env::var("USERPROFILE") {
+        let search_roots = [
+            PathBuf::from(&home).join("Desktop"),
+            PathBuf::from(&home).join("Documents"),
+            PathBuf::from(&home).join("Downloads"),
+            PathBuf::from("D:\\"),
+        ];
+        let dev_patterns = [
+            ("node_modules",   "Node.js 依赖缓存",   "warn"),
+            (".gradle",        "Gradle 构建缓存",     "safe"),
+            ("__pycache__",    "Python 字节码缓存",   "safe"),
+            (".tox",           "Python tox 缓存",     "safe"),
+            (".pytest_cache",  "pytest 缓存",         "safe"),
+            ("target",         "Rust/Maven 编译输出", "warn"),
+        ];
+        for root in &search_roots {
+            if !root.exists() { continue; }
+            for entry in WalkDir::new(root).max_depth(4).into_iter().filter_map(|e| e.ok()) {
+                let fname = entry.file_name().to_string_lossy().to_string();
+                for (pattern, desc, level) in &dev_patterns {
+                    if fname == *pattern && entry.file_type().is_dir() {
+                        let (size, count) = scan_dir_stats(entry.path());
+                        if size > 10 * 1024 * 1024 { // 仅报告 >10MB
+                            targets.push(CleanTarget {
+                                name: format!("{} ({})", pattern, entry.path().parent()
+                                    .map(|p| p.file_name().unwrap_or_default().to_string_lossy().to_string())
+                                    .unwrap_or_default()),
+                                description: desc.to_string(),
+                                path: entry.path().to_string_lossy().into(),
+                                size, file_count: count,
+                                level: level.to_string(),
+                            });
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 9. 空文件夹扫描（用户目录内）
+    if let Ok(home) = std::env::var("USERPROFILE") {
+        let mut empty_count = 0u64;
+        let search_roots = [
+            PathBuf::from(&home).join("Desktop"),
+            PathBuf::from(&home).join("Documents"),
+            PathBuf::from(&home).join("Downloads"),
+        ];
+        for root in &search_roots {
+            if !root.exists() { continue; }
+            for entry in WalkDir::new(root).min_depth(1).max_depth(5)
+                .into_iter().filter_map(|e| e.ok())
+            {
+                if entry.file_type().is_dir() {
+                    if let Ok(mut rd) = std::fs::read_dir(entry.path()) {
+                        if rd.next().is_none() {
+                            empty_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        if empty_count > 0 {
+            targets.push(CleanTarget {
+                name: "空文件夹".into(),
+                description: format!("检测到 {} 个空目录，可安全删除", empty_count),
+                path: "__empty_dirs__".into(),
+                size: 0,
+                file_count: empty_count,
+                level: "safe".into(),
+            });
+        }
+    }
+
     // 按大小降序
     targets.sort_by(|a, b| b.size.cmp(&a.size));
     Ok(targets)

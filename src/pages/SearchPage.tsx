@@ -1,17 +1,44 @@
 import { useState, useRef } from 'react';
-import { Button, Spin, message } from 'antd';
+import { Button, Spin, message, Select } from 'antd';
 import {
   SearchOutlined, FileWordOutlined, FilePdfOutlined,
   FileExcelOutlined, FileImageOutlined, FileOutlined,
   FolderOpenOutlined, DatabaseOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { searchFiles, scanAndIndex, quarantineFile, pickFolder, watchDirectory, revealInExplorer } from '../services/file.service';
+import { searchFiles, scanAndIndex, quarantineFile, pickFolder, watchDirectory } from '../services/file.service';
+import type { SearchFilter } from '../services/file.service';
 import type { SearchResult } from '../types';
 import { formatSize, formatDate, getParentDir } from '../utils/path.util';
 
 const SUGGESTIONS = ['合同', 'PPT', '视频', '图片', 'Excel'];
 const SCAN_ROOTS = ['C:\\Users', 'D:\\', 'E:\\'];
+const CATEGORIES = [
+  { value: 'all',   label: '全部类型' },
+  { value: '文档',   label: '文档' },
+  { value: '表格',   label: '表格' },
+  { value: '演示文稿', label: '演示文稿' },
+  { value: '图片',   label: '图片' },
+  { value: '视频',   label: '视频' },
+  { value: '音频',   label: '音频' },
+  { value: '代码',   label: '代码' },
+  { value: '压缩包', label: '压缩包' },
+  { value: '安装包', label: '安装包' },
+  { value: '其他',   label: '其他' },
+];
+const SIZE_OPTIONS = [
+  { value: 'all',  label: '全部大小', min: undefined, max: undefined },
+  { value: 'tiny', label: '< 1 MB',   min: undefined, max: 1 * 1024 * 1024 },
+  { value: 'mid',  label: '1–100 MB', min: 1 * 1024 * 1024, max: 100 * 1024 * 1024 },
+  { value: 'big',  label: '> 100 MB', min: 100 * 1024 * 1024, max: undefined },
+];
+const DATE_OPTIONS = [
+  { value: 'all',   label: '全部时间', days: undefined },
+  { value: 'today', label: '今天',     days: 1 },
+  { value: 'week',  label: '本周',     days: 7 },
+  { value: 'month', label: '本月',     days: 30 },
+  { value: 'half',  label: '半年内',   days: 180 },
+];
 
 function getFileIcon(name: string): { icon: React.ReactNode; color: string } {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
@@ -29,11 +56,27 @@ export default function SearchPage() {
   const [submitted, setSubmitted] = useState('');
   const [scanRoot, setScanRoot] = useState('C:\\Users');
   const [watchActive, setWatchActive] = useState(false);
+  const [catFilter, setCatFilter] = useState('all');
+  const [sizeFilter, setSizeFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const activeFilter: SearchFilter = {
+    category: catFilter !== 'all' ? catFilter : undefined,
+    sizeMin: SIZE_OPTIONS.find(o => o.value === sizeFilter)?.min,
+    sizeMax: SIZE_OPTIONS.find(o => o.value === sizeFilter)?.max,
+    daysAgo: DATE_OPTIONS.find(o => o.value === dateFilter)?.days,
+  };
+  const hasFilter = catFilter !== 'all' || sizeFilter !== 'all' || dateFilter !== 'all';
+
   async function revealPath(path: string) {
-    try { await revealInExplorer(path); }
-    catch { message.error('无法打开路径'); }
+    try {
+      const parent = path.replace(/[^\\/]+$/, '').replace(/[\\/]$/, '') || 'C:\\';
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('plugin:opener|open_url', { url: parent }).catch(() =>
+        invoke('plugin:shell|open', { path: parent })
+      );
+    } catch { message.warning('打开文件夹需要 Tauri 权限配置'); }
   }
 
   async function handleQuarantine(path: string) {
@@ -61,9 +104,9 @@ export default function SearchPage() {
   }
 
   const { data: results = [], isFetching } = useQuery<SearchResult[]>({
-    queryKey: ['search', submitted],
-    queryFn: () => searchFiles(submitted, 100),
-    enabled: submitted.trim().length > 0,
+    queryKey: ['search', submitted, catFilter, sizeFilter, dateFilter],
+    queryFn: () => searchFiles(submitted, 100, activeFilter),
+    enabled: submitted.trim().length > 0 || hasFilter,
   });
 
   const indexMutation = useMutation({
@@ -97,12 +140,28 @@ export default function SearchPage() {
             />
             <Button type="primary" icon={<SearchOutlined />} onClick={doSearch} loading={isFetching}>搜索</Button>
           </div>
-          <div style={{ display: 'flex', gap: 8, fontSize: 12, color: '#8c8c8c', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, fontSize: 12, color: '#8c8c8c', alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
             <span>快速搜索：</span>
             {SUGGESTIONS.map(s => (
               <span key={s} style={{ color: '#1677ff', cursor: 'pointer', padding: '2px 8px', background: '#f0f5ff', borderRadius: 4 }}
                 onClick={() => { setQuery(s); setSubmitted(s); }}>{s}</span>
             ))}
+          </div>
+          {/* 高级筛选 */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: '#8c8c8c' }}>筛选：</span>
+            <Select size="small" value={catFilter} onChange={setCatFilter} style={{ width: 110 }}
+              options={CATEGORIES} />
+            <Select size="small" value={sizeFilter} onChange={setSizeFilter} style={{ width: 110 }}
+              options={SIZE_OPTIONS.map(o => ({ value: o.value, label: o.label }))} />
+            <Select size="small" value={dateFilter} onChange={setDateFilter} style={{ width: 90 }}
+              options={DATE_OPTIONS.map(o => ({ value: o.value, label: o.label }))} />
+            {hasFilter && (
+              <Button size="small" type="link"
+                onClick={() => { setCatFilter('all'); setSizeFilter('all'); setDateFilter('all'); }}>
+                清除筛选
+              </Button>
+            )}
           </div>
         </div>
       </div>

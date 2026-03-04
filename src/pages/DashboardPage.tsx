@@ -4,7 +4,8 @@ import {
   AppstoreOutlined, ClearOutlined,
   CopyOutlined, DeleteOutlined, SearchOutlined,
 } from '@ant-design/icons';
-import { getDiskInfo, getIndexStats } from '../services/file.service';
+import { getDiskInfo, getIndexStats, getHealthScore } from '../services/file.service';
+import type { HealthReport } from '../services/file.service';
 import { formatSize, formatDate } from '../utils/path.util';
 import { useAppStore } from '../stores/useAppStore';
 
@@ -21,6 +22,12 @@ export default function DashboardPage() {
   const { data: stats } = useQuery({
     queryKey: ['index-stats'],
     queryFn: getIndexStats,
+  });
+
+  const { data: health } = useQuery<HealthReport>({
+    queryKey: ['health-score'],
+    queryFn: getHealthScore,
+    staleTime: 5 * 60_000,
   });
 
   const quickActions = [
@@ -69,13 +76,24 @@ export default function DashboardPage() {
         </div>
         <div className="stat-card">
           <div className="stat-label">可释放空间</div>
-          <div><span className="stat-value" style={{ color: '#1677ff' }}>--</span></div>
-          <div className="stat-extra">扫描后获得</div>
+          <div><span className="stat-value" style={{ color: '#1677ff' }}>
+            {health ? formatSize(health.freeable_bytes) : '--'}
+          </span></div>
+          <div className="stat-extra">{health?.issues[0] ?? '计算中...'}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">健康评分</div>
-          <div><span className="stat-value" style={{ color: '#faad14' }}>--</span><span className="stat-suffix">/ 100</span></div>
-          <div className="stat-extra" style={{ color: '#faad14' }}>完成扫描后评估</div>
+          <div>
+            <span className="stat-value" style={{
+              color: health
+                ? health.score >= 80 ? '#52c41a' : health.score >= 60 ? '#faad14' : '#ff4d4f'
+                : '#faad14'
+            }}>{health?.score ?? '--'}</span>
+            <span className="stat-suffix">/ 100</span>
+          </div>
+          <div className="stat-extra" style={{
+            color: health ? (health.score >= 80 ? '#52c41a' : health.score >= 60 ? '#faad14' : '#ff4d4f') : '#faad14'
+          }}>{health ? (health.score >= 80 ? '状况良好' : health.score >= 60 ? '建议优化' : '需要关注') : '计算中...'}</div>
         </div>
       </div>
 

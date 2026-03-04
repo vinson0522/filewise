@@ -1,5 +1,4 @@
 pub mod commands;
-pub mod db;
 pub mod engine;
 pub mod security;
 pub mod state;
@@ -70,6 +69,7 @@ pub fn run() {
             save_settings,
             // audit log
             list_audit_log,
+            get_health_score,
             // AI
             check_ollama,
             list_ollama_models,

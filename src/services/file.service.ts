@@ -65,9 +65,26 @@ export async function scanAndIndex(path: string): Promise<IndexStats> {
   return safeInvoke<IndexStats>('scan_and_index', { path });
 }
 
-export async function searchFiles(query: string, limit = 50): Promise<SearchResult[]> {
-  if (!query.trim()) return [];
-  return safeInvoke<SearchResult[]>('search_files', { query, limit });
+export interface SearchFilter {
+  category?: string;
+  sizeMin?: number;
+  sizeMax?: number;
+  daysAgo?: number;
+}
+
+export async function searchFiles(
+  query: string,
+  limit = 100,
+  filter: SearchFilter = {}
+): Promise<SearchResult[]> {
+  return safeInvoke<SearchResult[]>('search_files', {
+    query,
+    limit,
+    category: filter.category ?? null,
+    sizeMin: filter.sizeMin ?? null,
+    sizeMax: filter.sizeMax ?? null,
+    daysAgo: filter.daysAgo ?? null,
+  });
 }
 
 // ===================== 清理 =====================
@@ -164,6 +181,7 @@ export interface AppSettings {
   auto_start: boolean;
   minimize_to_tray: boolean;
   excluded_paths: string[];
+  watch_dirs: string[];
   large_file_threshold_mb: number;
   ai_model: string;
 }
@@ -222,6 +240,18 @@ export interface ClassifySuggestion {
   suggested_category: string;
   suggested_folder: string;
   reason: string;
+}
+
+// ===================== 健康评分 =====================
+
+export interface HealthReport {
+  score: number;
+  freeable_bytes: number;
+  issues: string[];
+}
+
+export async function getHealthScore(): Promise<HealthReport> {
+  return safeInvoke<HealthReport>('get_health_score');
 }
 
 export async function checkOllama(): Promise<boolean> {

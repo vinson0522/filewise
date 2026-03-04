@@ -8,6 +8,7 @@ const DEFAULT: AppSettings = {
   local_ai: true, auto_organize: false, snapshot_before_op: true,
   auto_start: false, minimize_to_tray: true,
   excluded_paths: ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)'],
+  watch_dirs: [],
   large_file_threshold_mb: 100,
   ai_model: 'qwen2.5:7b',
 };
@@ -17,6 +18,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newPath, setNewPath] = useState('');
+  const [newWatchDir, setNewWatchDir] = useState('');
   const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
 
   useEffect(() => {
@@ -46,6 +48,13 @@ export default function SettingsPage() {
     if (!p || cfg.excluded_paths.includes(p)) return;
     set('excluded_paths', [...cfg.excluded_paths, p]);
     setNewPath('');
+  }
+
+  function addWatchDir() {
+    const p = newWatchDir.trim();
+    if (!p || cfg.watch_dirs.includes(p)) return;
+    set('watch_dirs', [...cfg.watch_dirs, p]);
+    setNewWatchDir('');
   }
 
   if (loading) return <div style={{ textAlign: 'center', paddingTop: 80 }}><Spin /></div>;
@@ -98,11 +107,6 @@ export default function SettingsPage() {
           <div className="section-card-header"><h3>整理与清理</h3></div>
           <div className="section-card-body">
             {row('自动归档', '监控目录中新文件自动分类', <Switch checked={autoOrg} onChange={setAutoOrg} />)}
-            {row('监控目录', null,
-              <Select mode="multiple" value={['桌面', '下载']} style={{ width: 200 }} options={[
-                { value: '桌面', label: '桌面' }, { value: '下载', label: '下载' }, { value: 'D盘', label: 'D:/' },
-              ]} />
-            )}
             {row('操作快照', '操作前自动创建恢复快照', <Switch checked={snapshot} onChange={setSnapshot} />)}
             {row('大文件阈值 (MB)', null,
               <Select value={String(cfg.large_file_threshold_mb)}
@@ -117,6 +121,35 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid-2" style={{ marginTop: 0 }}>
+        {/* Watch dirs */}
+        <div className="section-card">
+          <div className="section-card-header">
+            <h3>监控目录</h3>
+            <span style={{ fontSize: 12, color: '#8c8c8c' }}>新文件自动归档（需开启自动归档）</span>
+          </div>
+          <div className="section-card-body">
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <Input
+                size="small" placeholder="输入要监控的目录，如 D:\\项目"
+                value={newWatchDir} onChange={e => setNewWatchDir(e.target.value)}
+                onPressEnter={addWatchDir} style={{ flex: 1 }}
+              />
+              <Button size="small" icon={<PlusOutlined />} onClick={addWatchDir}>添加</Button>
+            </div>
+            {cfg.watch_dirs.length === 0 && (
+              <div style={{ color: '#bfbfbf', fontSize: 13, padding: '8px 0' }}>暂无监控目录</div>
+            )}
+            {cfg.watch_dirs.map((p: string, i: number) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < cfg.watch_dirs.length - 1 ? '1px solid #fafafa' : 'none' }}>
+                <Tag style={{ fontFamily: 'monospace', margin: 0 }}>{p}</Tag>
+                <Button type="link" size="small" danger icon={<DeleteOutlined />}
+                  onClick={() => set('watch_dirs', cfg.watch_dirs.filter((_: string, j: number) => j !== i))}
+                >移除</Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Excluded paths */}
         <div className="section-card">
           <div className="section-card-header">
