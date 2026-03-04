@@ -97,8 +97,16 @@ export interface CleanItem {
   count: number;
 }
 
+export interface AgentActionResult {
+  type: 'disk_info' | 'clean_scan' | 'large_files' | 'duplicates' | 'index_stats' | 'search' | 'navigate';
+  label: string;
+  data: unknown;
+  navigateTo?: PageKey;
+}
+
 export interface ChatMessage {
   role: 'ai' | 'user';
   text: string;
   timestamp?: number;
+  actionResult?: AgentActionResult;
 }

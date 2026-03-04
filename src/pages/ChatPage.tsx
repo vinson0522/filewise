@@ -1,20 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button, Tag, Spin, Alert } from 'antd';
-import { SendOutlined, RobotOutlined, UserOutlined, ReloadOutlined } from '@ant-design/icons';
+import { SendOutlined, RobotOutlined, UserOutlined, ReloadOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { useAppStore } from '../stores/useAppStore';
 import { aiChat, checkOllama } from '../services/file.service';
 import type { ChatMessage } from '../services/file.service';
+import { detectAndExecute } from '../services/agent';
+import type { PageKey } from '../types';
 
 const QUICK_CMDS = [
-  '帮我整理桌面文件',
-  '如何清理C盘临时文件？',
-  '查找重复文件的步骤',
+  '整理桌面文件',
+  '清理临时文件和缓存',
+  '扫描重复文件',
   '分析磁盘空间占用',
-  '大文件如何处理？',
+  '扫描大文件',
 ];
 
 export default function ChatPage() {
-  const { chatMessages, appendChatMessage } = useAppStore();
+  const { chatMessages, appendChatMessage, setCurrentPage } = useAppStore();
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [ollamaOnline, setOllamaOnline] = useState<boolean | null>(null);
@@ -37,17 +39,45 @@ export default function ChatPage() {
     appendChatMessage({ role: 'user', text: msg, timestamp: Date.now() });
 
     try {
-      // 将 store 格式转换为 Ollama 格式
-      const history: ChatMessage[] = chatMessages
-        .concat([{ role: 'user', text: msg, timestamp: Date.now() }])
-        .map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text }));
+      // 1️⃣ Agent: 检测意图并执行操作
+      const agentResult = await detectAndExecute(msg);
 
-      const reply = await aiChat(history);
-      appendChatMessage({ role: 'ai', text: reply, timestamp: Date.now() });
+      if (agentResult) {
+        // 展示操作结果
+        appendChatMessage({
+          role: 'ai',
+          text: agentResult.text,
+          timestamp: Date.now(),
+          actionResult: agentResult.result,
+        });
+
+        // 2️⃣ 用结果让 AI 给出智能建议（可选，如果 Ollama 在线）
+        if (ollamaOnline) {
+          try {
+            const contextMsg = `用户说："${msg}"
+
+FileWise 已自动执行了「${agentResult.result.label}」操作，结果如下：
+${agentResult.text}
+
+请基于以上结果，给用户 1-3 条简短的后续建议，引导他们使用 FileWise 的功能。不要重复结果数据，只给建议。`;
+            const history: ChatMessage[] = [{ role: 'user', content: contextMsg }];
+            const reply = await aiChat(history);
+            appendChatMessage({ role: 'ai', text: `💡 ${reply}`, timestamp: Date.now() });
+          } catch { /* AI 离线时不影响 Agent 结果 */ }
+        }
+      } else {
+        // 无匹配意图，走普通 AI 对话
+        const history: ChatMessage[] = chatMessages
+          .concat([{ role: 'user', text: msg, timestamp: Date.now() }])
+          .map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text }));
+
+        const reply = await aiChat(history);
+        appendChatMessage({ role: 'ai', text: reply, timestamp: Date.now() });
+      }
     } catch (e) {
       appendChatMessage({
         role: 'ai',
-        text: `⚠️ AI 响应失败：${String(e)}\n\n请确保已安装并运行 Ollama（https://ollama.ai）且已拉取所选模型。`,
+        text: `⚠️ 执行失败：${String(e)}`,
         timestamp: Date.now(),
       });
     } finally {
@@ -113,6 +143,14 @@ export default function ChatPage() {
                 color: m.role === 'ai' ? '#262626' : '#fff',
               }}>
                 {m.text}
+                {m.actionResult && m.actionResult.navigateTo && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e8e8e8' }}>
+                    <Button type="primary" size="small" icon={<ArrowRightOutlined />}
+                      onClick={() => setCurrentPage(m.actionResult!.navigateTo as PageKey)}>
+                      前往{m.actionResult.label}页面操作
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           ))}

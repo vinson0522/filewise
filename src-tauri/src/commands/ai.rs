@@ -3,7 +3,14 @@ use tauri::State;
 use crate::state::AppState;
 use crate::commands::settings::AppSettings;
 
-const OLLAMA_BASE: &str = "http://127.0.0.1:11434";
+const OLLAMA_BASE: &str = "http://localhost:11434";
+
+fn http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
 
 // ——————————————————————————————————————————————
 // Ollama API 类型
@@ -60,12 +67,72 @@ fn get_model(state: &AppState) -> String {
 }
 
 // ——————————————————————————————————————————————
+// 构建实时上下文（注入 AI system prompt）
+// ——————————————————————————————————————————————
+
+fn build_context(state: &AppState) -> String {
+    let mut lines: Vec<String> = Vec::new();
+
+    // 磁盘信息
+    let disks = sysinfo::Disks::new_with_refreshed_list();
+    for d in disks.list() {
+        let total = d.total_space();
+        let avail = d.available_space();
+        let used = total.saturating_sub(avail);
+        let pct = if total > 0 { used as f64 / total as f64 * 100.0 } else { 0.0 };
+        lines.push(format!(
+            "- 磁盘 {}: 总容量 {:.1}GB, 已用 {:.1}GB ({:.0}%), 可用 {:.1}GB",
+            d.mount_point().display(),
+            total as f64 / 1e9, used as f64 / 1e9, pct, avail as f64 / 1e9
+        ));
+    }
+
+    // 索引统计
+    if let Ok(db) = state.db.lock() {
+        if let Ok((cnt, sz)) = db.query_row::<(i64, i64), _, _>(
+            "SELECT COUNT(*), COALESCE(SUM(size),0) FROM file_index", [],
+            |r| Ok((r.get(0)?, r.get(1)?))
+        ) {
+            lines.push(format!("- 已索引文件: {} 个, 总大小 {:.1}GB", cnt, sz as f64 / 1e9));
+        }
+
+        // 分类统计 top 5
+        if let Ok(mut stmt) = db.prepare(
+            "SELECT COALESCE(category,'其他'), COUNT(*) FROM file_index GROUP BY category ORDER BY COUNT(*) DESC LIMIT 5"
+        ) {
+            let cats: Vec<String> = stmt.query_map([], |r| {
+                Ok(format!("{}({}个)", r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+            }).ok().map(|rows| rows.filter_map(|r| r.ok()).collect()).unwrap_or_default();
+            if !cats.is_empty() {
+                lines.push(format!("- 文件分类: {}", cats.join(", ")));
+            }
+        }
+
+        // 隔离区
+        if let Ok(qcnt) = db.query_row::<i64, _, _>(
+            "SELECT COUNT(*) FROM quarantine", [], |r| r.get(0)
+        ) {
+            if qcnt > 0 { lines.push(format!("- 隔离区: {} 个文件", qcnt)); }
+        }
+
+        // 快照
+        if let Ok(scnt) = db.query_row::<i64, _, _>(
+            "SELECT COUNT(*) FROM snapshots WHERE status='active'", [], |r| r.get(0)
+        ) {
+            if scnt > 0 { lines.push(format!("- 可恢复快照: {} 个", scnt)); }
+        }
+    }
+
+    lines.join("\n")
+}
+
+// ——————————————————————————————————————————————
 // IPC: 健康检查 — 检测 Ollama 是否在线
 // ——————————————————————————————————————————————
 
 #[tauri::command]
 pub async fn check_ollama() -> Result<bool, String> {
-    let client = reqwest::Client::new();
+    let client = http_client();
     match client
         .get(format!("{}/api/tags", OLLAMA_BASE))
         .timeout(std::time::Duration::from_secs(3))
@@ -100,7 +167,7 @@ struct TagEntry {
 
 #[tauri::command]
 pub async fn list_ollama_models() -> Result<Vec<OllamaModel>, String> {
-    let client = reqwest::Client::new();
+    let client = http_client();
     let resp = client
         .get(format!("{}/api/tags", OLLAMA_BASE))
         .timeout(std::time::Duration::from_secs(5))
@@ -117,10 +184,26 @@ pub async fn list_ollama_models() -> Result<Vec<OllamaModel>, String> {
 // ——————————————————————————————————————————————
 
 const FILE_ASSISTANT_SYSTEM: &str = "\
-你是 FileWise AI，一个专业的文件管理助手。\
-你可以帮用户：整理文件、清理重复/临时文件、查找文件、分析磁盘空间。\
-当用户描述文件管理需求时，给出清晰的操作步骤建议。\
-回复简洁、专业，使用中文。不要提供与文件管理无关的内容。";
+你是 FileWise AI 助手，内嵌在 FileWise 桌面应用中。你必须基于本应用的功能来回答用户问题。\
+\
+## 你所在的应用 FileWise 拥有以下功能（用户可直接在应用中操作）：\
+1. **智能整理**（整理页面）：扫描指定目录，按文件类型（文档/图片/视频/音频/代码/压缩包等）或日期自动归档到子文件夹。\
+2. **系统清理**（清理页面）：一键扫描临时文件、浏览器缓存、开发缓存（node_modules/.gradle等）、空文件夹、回收站，显示可释放空间并安全清理。\
+3. **重复文件检测**（清理页面）：使用 BLAKE3 哈希精确查找重复文件，用户可选择保留或删除。\
+4. **大文件扫描**（清理页面）：扫描指定目录中超过阈值（默认100MB）的大文件，帮助释放空间。\
+5. **智能搜索**（搜索页面）：对已索引目录进行全文件名搜索，支持按类型/大小/日期筛选。\
+6. **文件索引**（搜索页面）：深度扫描目录建立索引，之后可快速搜索。\
+7. **文件监听**：实时监控指定目录的文件变化，自动更新索引。\
+8. **操作快照与回滚**（报告页面）：每次文件操作前自动创建快照，支持一键恢复。\
+9. **隔离区**（报告页面）：危险文件先移入隔离区保留30天，可随时恢复原位。\
+10. **磁盘健康评分**（仪表盘）：综合磁盘使用率、大文件占比、重复文件等指标给出0-100健康评分。\
+\
+## 回答规则：\
+- 当用户问到文件管理相关问题时，**必须引导用户使用 FileWise 应用内的功能**，告诉他们去哪个页面操作。\
+- 不要推荐第三方工具（如 WinDirStat、CCleaner 等），因为 FileWise 已内置这些功能。\
+- 不要给出通用的操作系统教程，而是告诉用户在 FileWise 中如何操作。\
+- 回复简洁、专业，使用中文。格式清晰，可用 Markdown。\
+- 如果下方提供了【当前系统状态】，请结合实际数据给出针对性建议。";
 
 #[derive(Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -135,11 +218,19 @@ pub async fn ai_chat(
 ) -> Result<String, String> {
     let model = get_model(&state);
 
-    let client = reqwest::Client::new();
+    let client = http_client();
+
+    // 收集实时系统状态注入上下文
+    let context = build_context(&state);
+    let system_prompt = if context.is_empty() {
+        FILE_ASSISTANT_SYSTEM.to_string()
+    } else {
+        format!("{}\n\n【当前系统状态】\n{}", FILE_ASSISTANT_SYSTEM, context)
+    };
 
     // 构建对话上下文（最近 10 条）
     let mut chat_msgs: Vec<OllamaChatMsg> = vec![
-        OllamaChatMsg { role: "system".to_string(), content: FILE_ASSISTANT_SYSTEM.to_string() },
+        OllamaChatMsg { role: "system".to_string(), content: system_prompt },
     ];
     let history = if messages.len() > 10 { &messages[messages.len()-10..] } else { &messages[..] };
     for m in history {
@@ -190,7 +281,7 @@ pub async fn ai_classify_files(
         return Ok(vec![]);
     }
     let model = get_model(&state);
-    let client = reqwest::Client::new();
+    let client = http_client();
 
     let files_str = file_names.iter().take(30).cloned().collect::<Vec<_>>().join("\n");
     let prompt = format!(
