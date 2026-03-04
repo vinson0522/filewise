@@ -56,6 +56,17 @@ export interface SnapshotInfo {
   status: 'active' | 'restored' | 'expired';
 }
 
+// ===================== 隔离区 =====================
+
+export interface QuarantineItem {
+  id: number;
+  original_path: string;
+  name: string;
+  deleted_at: number;
+  expires_at: number;
+  size: number;
+}
+
 // ===================== UI 状态 =====================
 
 export type PageKey =

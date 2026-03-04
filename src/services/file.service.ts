@@ -122,6 +122,25 @@ export async function scanLargeFiles(path: string, minSizeMb = 100): Promise<Lar
   return safeInvoke<LargeFileEntry[]>('scan_large_files', { path, minSizeMb });
 }
 
+// ===================== 隔离区 =====================
+
+export interface QuarantineItem {
+  id: number;
+  original_path: string;
+  name: string;
+  deleted_at: number;
+  expires_at: number;
+  size: number;
+}
+
+export async function listQuarantine(): Promise<QuarantineItem[]> {
+  return safeInvoke<QuarantineItem[]>('list_quarantine');
+}
+
+export async function restoreQuarantine(recordId: number): Promise<OperationResult> {
+  return safeInvoke<OperationResult>('restore_quarantine', { recordId });
+}
+
 // ===================== 快照 =====================
 
 export async function listSnapshots(): Promise<SnapshotInfo[]> {

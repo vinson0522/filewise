@@ -38,6 +38,7 @@ pub fn run() {
             scan_duplicates,
             pick_folder,
             quarantine_file,
+            list_quarantine,
             restore_quarantine,
             // clean
             scan_clean_targets,

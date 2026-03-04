@@ -1,9 +1,12 @@
-import { Button, Tag, Spin, message } from 'antd';
-import { CameraOutlined } from '@ant-design/icons';
+import { Button, Tag, Spin, message, Tabs } from 'antd';
+import { CameraOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listSnapshots, restoreSnapshot, deleteSnapshot } from '../services/file.service';
-import type { SnapshotInfo } from '../types';
-import { formatDate } from '../utils/path.util';
+import {
+  listSnapshots, restoreSnapshot, deleteSnapshot,
+  listQuarantine, restoreQuarantine,
+} from '../services/file.service';
+import type { SnapshotInfo, QuarantineItem } from '../types';
+import { formatDate, formatSize } from '../utils/path.util';
 
 const HISTORY = [
   { time: '03-04 14:30', type: '智能整理', target: '桌面',   result: '47 个文件已归档', undone: false },
@@ -24,6 +27,11 @@ export default function ReportPage() {
     queryFn: listSnapshots,
   });
 
+  const { data: quarantineItems = [], isLoading: loadingQuar } = useQuery<QuarantineItem[]>({
+    queryKey: ['quarantine'],
+    queryFn: listQuarantine,
+  });
+
   const restoreMut = useMutation({
     mutationFn: (id: string) => restoreSnapshot(id),
     onSuccess: (msg) => { message.success(msg); qc.invalidateQueries({ queryKey: ['snapshots'] }); },
@@ -34,6 +42,12 @@ export default function ReportPage() {
     mutationFn: (id: string) => deleteSnapshot(id),
     onSuccess: (msg) => { message.success(msg); qc.invalidateQueries({ queryKey: ['snapshots'] }); },
     onError: (e: Error) => message.error('删除失败：' + e.message),
+  });
+
+  const quarRestoreMut = useMutation({
+    mutationFn: (id: number) => restoreQuarantine(id),
+    onSuccess: (r) => { message.success(r.message); qc.invalidateQueries({ queryKey: ['quarantine'] }); },
+    onError: (e: Error) => message.error('恢复失败：' + e.message),
   });
 
   return (
@@ -58,64 +72,91 @@ export default function ReportPage() {
         ))}
       </div>
 
-      <div className="grid-2">
-        {/* 操作历史（保留 mock，待后续接入审计日志） */}
-        <div className="section-card">
-          <div className="section-card-header">
-            <h3>操作历史</h3>
-            <span style={{ fontSize: 12, color: '#8c8c8c' }}>最近记录</span>
-          </div>
-          <div style={{ padding: '8px 20px' }}>
-            {HISTORY.map((r, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: i < HISTORY.length - 1 ? '1px solid #fafafa' : 'none', fontSize: 13 }}>
-                <div style={{ width: 100, color: '#8c8c8c' }}>{r.time}</div>
-                <div style={{ width: 84 }}><Tag bordered={false} color={typeColor(r.type)}>{r.type}</Tag></div>
-                <div style={{ width: 72, color: '#595959' }}>{r.target}</div>
-                <div style={{ flex: 1, color: '#262626' }}>{r.result}</div>
-                <div style={{ width: 72, textAlign: 'right' }}>
-                  {r.undone
-                    ? <Tag color="orange" bordered={false}>已撤销</Tag>
-                    : <Button type="link" size="small">撤销</Button>}
+      <div className="section-card">
+        <Tabs
+          style={{ padding: '0 20px' }}
+          items={[
+            {
+              key: 'history',
+              label: '操作历史',
+              children: (
+                <div>
+                  {HISTORY.map((r, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: i < HISTORY.length - 1 ? '1px solid #fafafa' : 'none', fontSize: 13 }}>
+                      <div style={{ width: 100, color: '#8c8c8c' }}>{r.time}</div>
+                      <div style={{ width: 84 }}><Tag bordered={false} color={typeColor(r.type)}>{r.type}</Tag></div>
+                      <div style={{ width: 72, color: '#595959' }}>{r.target}</div>
+                      <div style={{ flex: 1, color: '#262626' }}>{r.result}</div>
+                      <div style={{ width: 72, textAlign: 'right' }}>
+                        {r.undone
+                          ? <Tag color="orange" bordered={false}>已撤销</Tag>
+                          : <Button type="link" size="small">撤销</Button>}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 快照管理（真实数据） */}
-        <div className="section-card">
-          <div className="section-card-header">
-            <h3>快照管理</h3>
-            <span style={{ fontSize: 12, color: '#8c8c8c' }}>
-              共 {snapshots.length} 个快照
-            </span>
-          </div>
-          <div style={{ padding: '8px 20px' }}>
-            {loadingSnaps ? (
-              <div style={{ textAlign: 'center', padding: '30px 0' }}><Spin /></div>
-            ) : snapshots.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '30px 0', color: '#bfbfbf', fontSize: 13 }}>
-                暂无快照，执行文件移动操作后会自动创建
-              </div>
-            ) : snapshots.map((s, i) => (
-              <div key={s.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: i < snapshots.length - 1 ? '1px solid #fafafa' : 'none', fontSize: 13 }}>
-                <CameraOutlined style={{ color: '#8c8c8c', marginRight: 10 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: '#262626', fontWeight: 500 }}>{s.description || '文件操作'}</div>
-                  <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 2 }}>
-                    {formatDate(s.created_at)} | {s.file_count} 个文件 | ID: {s.id.slice(0, 8)}
-                  </div>
+              ),
+            },
+            {
+              key: 'snapshots',
+              label: `快照管理 ${snapshots.length > 0 ? `(${snapshots.length})` : ''}`,
+              children: loadingSnaps ? (
+                <div style={{ textAlign: 'center', padding: '40px 0' }}><Spin /></div>
+              ) : snapshots.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#bfbfbf', fontSize: 13 }}>
+                  暂无快照，执行文件移动或整理后自动创建
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Button size="small" loading={restoreMut.isPending}
-                    onClick={() => restoreMut.mutate(s.id)}>恢复</Button>
-                  <Button size="small" danger loading={deleteMut.isPending}
-                    onClick={() => deleteMut.mutate(s.id)}>删除</Button>
+              ) : (
+                <div>
+                  {snapshots.map((s, i) => (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: i < snapshots.length - 1 ? '1px solid #fafafa' : 'none', fontSize: 13 }}>
+                      <CameraOutlined style={{ color: '#8c8c8c', marginRight: 10, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: '#262626', fontWeight: 500 }}>{s.description || '文件操作'}</div>
+                        <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 2 }}>
+                          {formatDate(s.created_at)} | {s.file_count} 个文件 | ID: {s.id.slice(0, 8)}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <Button size="small" loading={restoreMut.isPending}
+                          onClick={() => restoreMut.mutate(s.id)}>恢复</Button>
+                        <Button size="small" danger loading={deleteMut.isPending}
+                          onClick={() => deleteMut.mutate(s.id)}>删除</Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ),
+            },
+            {
+              key: 'quarantine',
+              label: `隔离区 ${quarantineItems.length > 0 ? `(${quarantineItems.length})` : ''}`,
+              children: loadingQuar ? (
+                <div style={{ textAlign: 'center', padding: '40px 0' }}><Spin /></div>
+              ) : quarantineItems.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#bfbfbf', fontSize: 13 }}>
+                  隔离区为空，文件在此安全保存 30 天后永久删除
+                </div>
+              ) : (
+                <div>
+                  {quarantineItems.map((q, i) => (
+                    <div key={q.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: i < quarantineItems.length - 1 ? '1px solid #fafafa' : 'none', fontSize: 13 }}>
+                      <DeleteOutlined style={{ color: '#ff4d4f', marginRight: 10, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: '#262626', fontWeight: 500 }}>{q.name}</div>
+                        <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {formatSize(q.size)} | 删除于 {formatDate(q.deleted_at)} | 到期 {formatDate(q.expires_at)}
+                        </div>
+                      </div>
+                      <Button size="small" loading={quarRestoreMut.isPending}
+                        onClick={() => quarRestoreMut.mutate(q.id)}>恢复原位</Button>
+                    </div>
+                  ))}
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
     </div>
   );

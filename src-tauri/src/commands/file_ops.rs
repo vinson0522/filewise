@@ -413,6 +413,46 @@ pub async fn quarantine_file(
     })
 }
 
+/// IPC: 获取隔离区文件列表
+#[tauri::command]
+pub async fn list_quarantine(state: State<'_, AppState>) -> Result<Vec<QuarantineItem>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db.prepare(
+        "SELECT id, original_path, deleted_at, expires_at, size FROM quarantine ORDER BY deleted_at DESC LIMIT 100"
+    ).map_err(|e| e.to_string())?;
+
+    let items = stmt.query_map([], |row| {
+        let path: String = row.get(1)?;
+        let name = std::path::Path::new(&path)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        Ok(QuarantineItem {
+            id: row.get(0)?,
+            original_path: path,
+            name,
+            deleted_at: row.get(2)?,
+            expires_at: row.get(3)?,
+            size: row.get::<_, i64>(4)? as u64,
+        })
+    })
+    .map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+
+    Ok(items)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct QuarantineItem {
+    pub id: i64,
+    pub original_path: String,
+    pub name: String,
+    pub deleted_at: i64,
+    pub expires_at: i64,
+    pub size: u64,
+}
+
 /// IPC: 从隔离区恢复文件
 #[tauri::command]
 pub async fn restore_quarantine(

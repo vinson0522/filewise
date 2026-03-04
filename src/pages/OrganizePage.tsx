@@ -15,7 +15,7 @@ function getTargetSubdir(name: string, strategy: string): string {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   if (strategy === 'date') {
     const now = new Date();
-    return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/`;
+    return `${now.getFullYear()}\\${String(now.getMonth() + 1).padStart(2, '0')}\\`;
   }
   // 按类型分类（Windows 使用反斜杠）
   if (['docx','doc','pdf','txt','md','pptx','ppt'].includes(ext)) return '文档\\';
