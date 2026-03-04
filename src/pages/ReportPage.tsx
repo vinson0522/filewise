@@ -3,24 +3,24 @@ import { CameraOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listSnapshots, restoreSnapshot, deleteSnapshot,
-  listQuarantine, restoreQuarantine,
+  listQuarantine, restoreQuarantine, listAuditLog,
 } from '../services/file.service';
+import type { AuditEntry } from '../services/file.service';
 import type { SnapshotInfo, QuarantineItem } from '../types';
 import { formatDate, formatSize } from '../utils/path.util';
 
-const HISTORY = [
-  { time: '03-04 14:30', type: '智能整理', target: '桌面',   result: '47 个文件已归档', undone: false },
-  { time: '03-04 10:15', type: '系统清理', target: 'C:/',    result: '释放 3.2 GB',    undone: false },
-  { time: '03-03 16:40', type: '重复检测', target: '全盘',   result: '23 组 / 14.2 GB', undone: false },
-  { time: '03-03 09:00', type: '自动归档', target: '下载',   result: '8 个文件',        undone: false },
-  { time: '03-02 15:20', type: '智能整理', target: 'D:/项目', result: '126 个文件',      undone: true  },
-  { time: '03-01 11:00', type: '大文件清理', target: 'E:/',  result: '释放 8.5 GB',    undone: false },
-];
-
 export default function ReportPage() {
   const qc = useQueryClient();
-  const typeColor = (t: string) =>
-    t.includes('整理') ? 'blue' : t.includes('清理') ? 'green' : 'default';
+  const actionColor = (a: string) =>
+    a === 'move' ? 'blue' : a === 'clean' ? 'green' : a === 'quarantine' ? 'orange' : a === 'index' ? 'purple' : 'default';
+  const actionLabel: Record<string, string> = {
+    move: '文件移动', clean: '清理', quarantine: '隔离', index: '索引', restore: '恢复',
+  };
+
+  const { data: auditLog = [], isLoading: loadingAudit } = useQuery<AuditEntry[]>({
+    queryKey: ['audit-log'],
+    queryFn: listAuditLog,
+  });
 
   const { data: snapshots = [], isLoading: loadingSnaps } = useQuery<SnapshotInfo[]>({
     queryKey: ['snapshots'],
@@ -76,21 +76,31 @@ export default function ReportPage() {
         <Tabs
           style={{ padding: '0 20px' }}
           items={[
-            {
-              key: 'history',
-              label: '操作历史',
-              children: (
+            {key: 'history',
+              label: `操作历史 ${auditLog.length > 0 ? `(${auditLog.length})` : ''}`,
+              children: loadingAudit ? (
+                <div style={{ textAlign: 'center', padding: '40px 0' }}><Spin /></div>
+              ) : auditLog.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#bfbfbf', fontSize: 13 }}>
+                  暂无操作记录，执行文件移动、清理、隔离后自动记录
+                </div>
+              ) : (
                 <div>
-                  {HISTORY.map((r, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: i < HISTORY.length - 1 ? '1px solid #fafafa' : 'none', fontSize: 13 }}>
-                      <div style={{ width: 100, color: '#8c8c8c' }}>{r.time}</div>
-                      <div style={{ width: 84 }}><Tag bordered={false} color={typeColor(r.type)}>{r.type}</Tag></div>
-                      <div style={{ width: 72, color: '#595959' }}>{r.target}</div>
-                      <div style={{ flex: 1, color: '#262626' }}>{r.result}</div>
-                      <div style={{ width: 72, textAlign: 'right' }}>
-                        {r.undone
-                          ? <Tag color="orange" bordered={false}>已撤销</Tag>
-                          : <Button type="link" size="small">撤销</Button>}
+                  {auditLog.map((r, i) => (
+                    <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '9px 0', borderBottom: i < auditLog.length - 1 ? '1px solid #fafafa' : 'none', fontSize: 13 }}>
+                      <div style={{ width: 100, color: '#8c8c8c', flexShrink: 0 }}>{formatDate(r.ts)}</div>
+                      <div style={{ width: 72, flexShrink: 0 }}>
+                        <Tag bordered={false} color={actionColor(r.action)}>
+                          {actionLabel[r.action] ?? r.action}
+                        </Tag>
+                      </div>
+                      <div style={{ flex: 2, color: '#595959', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        title={r.path}>{r.path.split(/[\\/]/).pop()}</div>
+                      <div style={{ flex: 1, color: '#8c8c8c', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.detail}</div>
+                      <div style={{ width: 52, textAlign: 'right', flexShrink: 0 }}>
+                        <Tag color={r.result === 'success' ? 'green' : 'red'} bordered={false}>
+                          {r.result === 'success' ? '成功' : '失败'}
+                        </Tag>
                       </div>
                     </div>
                   ))}

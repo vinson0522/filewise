@@ -1,15 +1,58 @@
-import { useState } from 'react';
-import { Button, Select, Switch } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { useState, useEffect } from 'react';
+import { Button, Select, Switch, message, Spin, Input, Tag } from 'antd';
+import { PlusOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
+import { getSettings, saveSettings } from '../services/file.service';
+import type { AppSettings } from '../services/file.service';
 
-const EXCLUDED_PATHS = ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', '*.sys', '*.dll'];
+const DEFAULT: AppSettings = {
+  local_ai: true, auto_organize: false, snapshot_before_op: true,
+  auto_start: false, minimize_to_tray: true,
+  excluded_paths: ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)'],
+  large_file_threshold_mb: 100,
+  ai_model: 'qwen2.5:7b',
+};
 
 export default function SettingsPage() {
-  const [localAI, setLocalAI]     = useState(true);
-  const [autoOrg, setAutoOrg]     = useState(false);
-  const [snapshot, setSnapshot]   = useState(true);
-  const [autoStart, setAutoStart] = useState(false);
-  const [toTray, setToTray]       = useState(true);
+  const [cfg, setCfg] = useState<AppSettings>(DEFAULT);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newPath, setNewPath] = useState('');
+
+  useEffect(() => {
+    getSettings().then(s => { setCfg(s); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await saveSettings(cfg);
+      message.success('设置已保存');
+    } catch (e) {
+      message.error('保存失败：' + String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function set<K extends keyof AppSettings>(k: K, v: AppSettings[K]) {
+    setCfg(prev => ({ ...prev, [k]: v }));
+  }
+
+  function addExclude() {
+    const p = newPath.trim();
+    if (!p || cfg.excluded_paths.includes(p)) return;
+    set('excluded_paths', [...cfg.excluded_paths, p]);
+    setNewPath('');
+  }
+
+  if (loading) return <div style={{ textAlign: 'center', paddingTop: 80 }}><Spin /></div>;
+
+  const [localAI, setLocalAI] = [cfg.local_ai, (v: boolean) => set('local_ai', v)];
+  const [autoOrg, setAutoOrg] = [cfg.auto_organize, (v: boolean) => set('auto_organize', v)];
+  const [snapshot, setSnapshot] = [cfg.snapshot_before_op, (v: boolean) => set('snapshot_before_op', v)];
+  const [autoStart, setAutoStart] = [cfg.auto_start, (v: boolean) => set('auto_start', v)];
+  const [toTray, setToTray] = [cfg.minimize_to_tray, (v: boolean) => set('minimize_to_tray', v)];
 
   const row = (label: string, desc: string | null, control: React.ReactNode) => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
@@ -35,7 +78,7 @@ export default function SettingsPage() {
           <div className="section-card-body">
             {row('本地模型推理', '使用 Ollama 在本地运行 AI 模型', <Switch checked={localAI} onChange={setLocalAI} />)}
             {localAI && row('模型选择', null,
-              <Select value="qwen2.5:7b" style={{ width: 200 }} options={[
+              <Select value={cfg.ai_model} onChange={v => set('ai_model', v)} style={{ width: 200 }} options={[
                 { value: 'qwen2.5:7b',  label: 'Qwen 2.5-7B（推荐）' },
                 { value: 'llama3.2:3b', label: 'Llama 3.2-3B（轻量）' },
                 { value: 'minicpm-v',   label: 'MiniCPM-V（视觉）' },
@@ -56,11 +99,13 @@ export default function SettingsPage() {
               ]} />
             )}
             {row('操作快照', '操作前自动创建恢复快照', <Switch checked={snapshot} onChange={setSnapshot} />)}
-            {row('隔离区保留天数', null,
-              <Select value="30" style={{ width: 120 }} options={[
-                { value: '7', label: '7 天' }, { value: '15', label: '15 天' },
-                { value: '30', label: '30 天' }, { value: '90', label: '90 天' },
-              ]} />
+            {row('大文件阈值 (MB)', null,
+              <Select value={String(cfg.large_file_threshold_mb)}
+                onChange={v => set('large_file_threshold_mb', Number(v))}
+                style={{ width: 120 }} options={[
+                  { value: '50', label: '50 MB' }, { value: '100', label: '100 MB' },
+                  { value: '200', label: '200 MB' }, { value: '500', label: '500 MB' },
+                ]} />
             )}
           </div>
         </div>
@@ -71,13 +116,24 @@ export default function SettingsPage() {
         <div className="section-card">
           <div className="section-card-header">
             <h3>排除规则</h3>
-            <Button size="small" icon={<PlusOutlined />}>添加</Button>
+            <span style={{ fontSize: 12, color: '#8c8c8c' }}>这些路径不会被扫描或整理</span>
           </div>
           <div className="section-card-body">
-            {EXCLUDED_PATHS.map((p, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < EXCLUDED_PATHS.length - 1 ? '1px solid #fafafa' : 'none' }}>
-                <span style={{ fontSize: 13, color: '#595959', fontFamily: 'monospace' }}>{p}</span>
-                <Button type="link" size="small" danger>移除</Button>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <Input
+                size="small" placeholder="输入要排除的路径，如 D:\\私人"
+                value={newPath} onChange={e => setNewPath(e.target.value)}
+                onPressEnter={addExclude}
+                style={{ flex: 1 }}
+              />
+              <Button size="small" icon={<PlusOutlined />} onClick={addExclude}>添加</Button>
+            </div>
+            {cfg.excluded_paths.map((p: string, i: number) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < cfg.excluded_paths.length - 1 ? '1px solid #fafafa' : 'none' }}>
+                <Tag style={{ fontFamily: 'monospace', margin: 0 }}>{p}</Tag>
+                <Button type="link" size="small" danger icon={<DeleteOutlined />}
+                  onClick={() => set('excluded_paths', cfg.excluded_paths.filter((_: string, j: number) => j !== i))}
+                >移除</Button>
               </div>
             ))}
           </div>
@@ -92,7 +148,8 @@ export default function SettingsPage() {
             {row('最小化到托盘', null, <Switch checked={toTray} onChange={setToTray} />)}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 13, color: '#8c8c8c' }}>FileWise v1.0.0</span>
-              <Button size="small">检查更新</Button>
+              <Button type="primary" size="small" icon={<SaveOutlined />}
+                loading={saving} onClick={handleSave}>保存设置</Button>
             </div>
           </div>
         </div>

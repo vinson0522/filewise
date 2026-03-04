@@ -82,6 +82,11 @@ impl AppState {
                 result  TEXT NOT NULL DEFAULT 'success'
             );
 
+            CREATE TABLE IF NOT EXISTS settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_file_path     ON file_index(path);
             CREATE INDEX IF NOT EXISTS idx_file_category ON file_index(category);
             CREATE INDEX IF NOT EXISTS idx_file_ext      ON file_index(extension);

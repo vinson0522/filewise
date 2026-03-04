@@ -154,3 +154,51 @@ export async function restoreSnapshot(snapshotId: string): Promise<string> {
 export async function deleteSnapshot(snapshotId: string): Promise<string> {
   return safeInvoke<string>('delete_snapshot', { snapshotId });
 }
+
+// ===================== 设置 =====================
+
+export interface AppSettings {
+  local_ai: boolean;
+  auto_organize: boolean;
+  snapshot_before_op: boolean;
+  auto_start: boolean;
+  minimize_to_tray: boolean;
+  excluded_paths: string[];
+  large_file_threshold_mb: number;
+  ai_model: string;
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  return safeInvoke<AppSettings>('get_settings');
+}
+
+export async function saveSettings(settings: AppSettings): Promise<void> {
+  return safeInvoke<void>('save_settings', { settings });
+}
+
+// ===================== 审计日志 =====================
+
+export interface AuditEntry {
+  id: number;
+  ts: number;
+  action: string;
+  path: string;
+  detail: string;
+  result: string;
+}
+
+export async function listAuditLog(): Promise<AuditEntry[]> {
+  return safeInvoke<AuditEntry[]>('list_audit_log');
+}
+
+// ===================== 文件打开 =====================
+
+/** 用资源管理器打开文件所在目录 */
+export async function revealInExplorer(path: string): Promise<void> {
+  const { invoke: tauriInvoke } = await import('@tauri-apps/api/core');
+  // 使用 shell open 打开父目录
+  const parent = path.replace(/[^\\\/]+$/, '').replace(/[\\\/]$/, '') || 'C:\\';
+  await tauriInvoke('plugin:opener|open_path', { path: parent }).catch(() =>
+    tauriInvoke('open_path', { path: parent })
+  );
+}

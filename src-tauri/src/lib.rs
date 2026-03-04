@@ -7,6 +7,7 @@ pub mod state;
 use commands::clean::*;
 use commands::file_ops::*;
 use commands::index::*;
+use commands::settings::*;
 use commands::snapshot::*;
 use state::AppState;
 use tauri::Manager;
@@ -25,6 +26,15 @@ pub fn run() {
 
             let app_state = AppState::init(data_dir)
                 .expect("数据库初始化失败");
+
+            // R8: 启动时清理已过期的隔离区文件
+            let now = chrono::Utc::now().timestamp();
+            if let Ok(db) = app_state.db.lock() {
+                let _ = db.execute(
+                    "DELETE FROM quarantine WHERE expires_at < ?1",
+                    rusqlite::params![now],
+                );
+            }
 
             app.manage(app_state);
             Ok(())
@@ -51,6 +61,11 @@ pub fn run() {
             list_snapshots,
             restore_snapshot,
             delete_snapshot,
+            // settings
+            get_settings,
+            save_settings,
+            // audit log
+            list_audit_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

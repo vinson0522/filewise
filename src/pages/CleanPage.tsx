@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Button, Checkbox, Tag, Tabs, message, Spin, Select } from 'antd';
-import { DeleteOutlined, FileOutlined, ScanOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, FileOutlined, ScanOutlined, ReloadOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   scanCleanTargets, executeClean,
-  scanDuplicates, scanLargeFiles,
+  scanDuplicates, scanLargeFiles, quarantineFile, pickFolder,
 } from '../services/file.service';
 import type { CleanTarget, DupGroup, LargeFileEntry } from '../services/file.service';
 import { formatSize, formatDate } from '../utils/path.util';
@@ -23,6 +23,22 @@ export default function CleanPage() {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [dupRoot, setDupRoot] = useState('C:\\Users');
   const [largeRoot, setLargeRoot] = useState('C:\\Users');
+  const [quarantining, setQuarantining] = useState<string | null>(null);
+
+  async function handleQuarantine(path: string) {
+    setQuarantining(path);
+    try {
+      const r = await quarantineFile(path);
+      message.success(r.message);
+      qc.invalidateQueries({ queryKey: ['dup-groups', dupRoot] });
+      qc.invalidateQueries({ queryKey: ['large-files', largeRoot] });
+      qc.invalidateQueries({ queryKey: ['quarantine'] });
+    } catch (e) {
+      message.error('隔离失败：' + String(e));
+    } finally {
+      setQuarantining(null);
+    }
+  }
 
   // 系统清理目标（自动扫描）
   const { data: targets = [], isLoading: loadingTargets, refetch: refetchTargets } =
@@ -141,6 +157,8 @@ export default function CleanPage() {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <Select value={dupRoot} onChange={setDupRoot} style={{ width: 120 }}
                 options={SCAN_ROOTS.map(r => ({ value: r, label: r }))} />
+              <Button size="small" icon={<FolderOpenOutlined />}
+                onClick={async () => { const p = await pickFolder(); if (p) setDupRoot(p); }}>浏览</Button>
               <Button type="primary" size="small" icon={<ScanOutlined />}
                 loading={scanningDups} onClick={() => refetchDups()}>开始扫描</Button>
             </div>
@@ -160,13 +178,14 @@ export default function CleanPage() {
                 </div>
                 {g.files.map((f, fi) => (
                   <div key={fi} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid #f5f5f5', fontSize: 13 }}>
-                    <Checkbox style={{ marginRight: 8 }} defaultChecked={fi > 0} />
-                    <FileOutlined style={{ marginRight: 8, color: '#8c8c8c' }} />
+                    <FileOutlined style={{ marginRight: 8, color: '#8c8c8c', flexShrink: 0 }} />
                     <span style={{ flex: 1, color: '#595959', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f}</span>
                     <span style={{ marginLeft: 8, color: '#8c8c8c', flexShrink: 0 }}>{formatSize(g.size)}</span>
                     {fi === 0
-                      ? <Tag color="blue" bordered={false} style={{ marginLeft: 8, flexShrink: 0 }}>保留</Tag>
-                      : <Tag bordered={false} style={{ marginLeft: 8, flexShrink: 0 }}>可删除</Tag>}
+                      ? <Tag color="blue" bordered={false} style={{ marginLeft: 8, flexShrink: 0 }}>保留原件</Tag>
+                      : <Button size="small" danger loading={quarantining === f}
+                          style={{ marginLeft: 8, flexShrink: 0 }}
+                          onClick={() => handleQuarantine(f)}>隔离</Button>}
                   </div>
                 ))}
               </div>
@@ -183,6 +202,8 @@ export default function CleanPage() {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <Select value={largeRoot} onChange={setLargeRoot} style={{ width: 120 }}
                 options={SCAN_ROOTS.map(r => ({ value: r, label: r }))} />
+              <Button size="small" icon={<FolderOpenOutlined />}
+                onClick={async () => { const p = await pickFolder(); if (p) setLargeRoot(p); }}>浏览</Button>
               <Button type="primary" size="small" icon={<ScanOutlined />}
                 loading={scanningLarge} onClick={() => refetchLarge()}>开始扫描</Button>
               {largeFiles.length > 0 &&
@@ -213,8 +234,9 @@ export default function CleanPage() {
                     <div style={{ flex: 2, color: '#8c8c8c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.path.replace(f.name, '')}</div>
                     <div style={{ width: 100, textAlign: 'right', fontWeight: 500 }}>{formatSize(f.size)}</div>
                     <div style={{ width: 100, textAlign: 'right', color: '#8c8c8c' }}>{formatDate(f.modified_at)}</div>
-                    <div style={{ width: 64, textAlign: 'center' }}>
-                      <Button type="link" size="small" danger onClick={() => message.warning('删除功能开发中')}>删除</Button>
+                    <div style={{ width: 80, textAlign: 'center' }}>
+                      <Button size="small" danger loading={quarantining === f.path}
+                        onClick={() => handleQuarantine(f.path)}>隔离</Button>
                     </div>
                   </div>
                 ))}
