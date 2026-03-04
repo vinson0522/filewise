@@ -6,8 +6,11 @@ import {
 } from '@ant-design/icons';
 import { getDiskInfo, getIndexStats } from '../services/file.service';
 import { formatSize } from '../utils/path.util';
+import { useAppStore } from '../stores/useAppStore';
 
 export default function DashboardPage() {
+  const { setCurrentPage } = useAppStore();
+
   const { data: disks = [] } = useQuery({
     queryKey: ['disk-info'],
     queryFn: getDiskInfo,
@@ -20,10 +23,10 @@ export default function DashboardPage() {
   });
 
   const quickActions = [
-    { icon: <AppstoreOutlined />, title: '一键整理桌面',   desc: '智能分类桌面文件',   bg: '#e6f4ff', color: '#1677ff' },
-    { icon: <ClearOutlined />,    title: '清理下载文件夹', desc: '清理过期下载文件',   bg: '#f6ffed', color: '#52c41a' },
-    { icon: <CopyOutlined />,     title: '查找重复文件',   desc: '扫描并去除重复',     bg: '#fff7e6', color: '#fa8c16' },
-    { icon: <DeleteOutlined />,   title: '清理系统缓存',   desc: '释放系统空间',       bg: '#f9f0ff', color: '#722ed1' },
+    { icon: <AppstoreOutlined />, title: '智能整理',       desc: '按类型自动分类归档', bg: '#e6f4ff', color: '#1677ff', page: 'organize' as const },
+    { icon: <ClearOutlined />,    title: '系统清理',       desc: '清理临时/缓存文件',   bg: '#f6ffed', color: '#52c41a', page: 'clean' as const },
+    { icon: <CopyOutlined />,     title: '查找重复文件',   desc: '扫描并去除重复',     bg: '#fff7e6', color: '#fa8c16', page: 'clean' as const },
+    { icon: <DeleteOutlined />,   title: '大文件扫描',     desc: '发现空间占用大文件', bg: '#f9f0ff', color: '#722ed1', page: 'clean' as const },
   ];
 
   return (
@@ -95,7 +98,7 @@ export default function DashboardPage() {
           <div className="section-card-header"><h3>快捷操作</h3></div>
           <div className="section-card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {quickActions.map((a) => (
-              <div className="quick-action" key={a.title}>
+              <div className="quick-action" key={a.title} onClick={() => setCurrentPage(a.page)}>
                 <div className="quick-action-icon" style={{ background: a.bg, color: a.color }}>
                   {a.icon}
                 </div>
