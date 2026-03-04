@@ -149,6 +149,18 @@ pub struct AppSettings {
     pub watch_dirs: Vec<String>,
     pub large_file_threshold_mb: u64,
     pub ai_model: String,
+    #[serde(default)]
+    pub index_dir: String,
+    #[serde(default)]
+    pub quarantine_dir: String,
+    #[serde(default)]
+    pub cloud_ai_provider: String,
+    #[serde(default)]
+    pub cloud_ai_model: String,
+    #[serde(default)]
+    pub cloud_ai_api_key: String,
+    #[serde(default)]
+    pub cloud_ai_base_url: String,
 }
 
 impl Default for AppSettings {
@@ -173,6 +185,12 @@ impl Default for AppSettings {
             },
             large_file_threshold_mb: 100,
             ai_model: "qwen2.5:7b".into(),
+            index_dir: String::new(),
+            quarantine_dir: String::new(),
+            cloud_ai_provider: String::new(),
+            cloud_ai_model: String::new(),
+            cloud_ai_api_key: String::new(),
+            cloud_ai_base_url: String::new(),
         }
     }
 }

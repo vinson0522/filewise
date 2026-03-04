@@ -51,7 +51,7 @@ struct OllamaChatResponse {
 // 内部辅助：读取当前设置的模型名称
 // ——————————————————————————————————————————————
 
-fn get_model(state: &AppState) -> String {
+fn get_ai_settings(state: &AppState) -> AppSettings {
     if let Ok(db) = state.db.lock() {
         if let Ok(json) = db.query_row(
             "SELECT value FROM settings WHERE key = 'app_settings'",
@@ -59,11 +59,96 @@ fn get_model(state: &AppState) -> String {
             |r| r.get::<_, String>(0),
         ) {
             if let Ok(s) = serde_json::from_str::<AppSettings>(&json) {
-                return s.ai_model;
+                return s;
             }
         }
     }
-    "qwen2.5:7b".to_string()
+    AppSettings::default()
+}
+
+fn get_model(state: &AppState) -> String {
+    get_ai_settings(state).ai_model
+}
+
+/// OpenAI-compatible /v1/chat/completions 响应
+#[derive(Deserialize)]
+struct OpenAIResponse {
+    choices: Vec<OpenAIChoice>,
+}
+#[derive(Deserialize)]
+struct OpenAIChoice {
+    message: OpenAIMsg,
+}
+#[derive(Deserialize)]
+struct OpenAIMsg {
+    content: String,
+}
+
+/// 云端 AI 对话（OpenAI 兼容接口：通义千问/DeepSeek/Moonshot/OpenAI 等）
+async fn cloud_chat(
+    settings: &AppSettings,
+    system_prompt: &str,
+    messages: &[ChatMessage],
+) -> Result<String, String> {
+    let base_url = if settings.cloud_ai_base_url.is_empty() {
+        match settings.cloud_ai_provider.as_str() {
+            "deepseek"  => "https://api.deepseek.com".to_string(),
+            "moonshot"  => "https://api.moonshot.cn".to_string(),
+            "zhipu"     => "https://open.bigmodel.cn/api/paas".to_string(),
+            "openai"    => "https://api.openai.com".to_string(),
+            _ => "https://dashscope.aliyuncs.com/compatible-mode".to_string(), // 通义千问
+        }
+    } else {
+        settings.cloud_ai_base_url.clone()
+    };
+
+    let model = if settings.cloud_ai_model.is_empty() {
+        match settings.cloud_ai_provider.as_str() {
+            "deepseek"  => "deepseek-chat",
+            "moonshot"  => "moonshot-v1-8k",
+            "zhipu"     => "glm-4-flash",
+            "openai"    => "gpt-4o-mini",
+            _ => "qwen-plus",
+        }.to_string()
+    } else {
+        settings.cloud_ai_model.clone()
+    };
+
+    let mut msgs = vec![
+        serde_json::json!({"role": "system", "content": system_prompt}),
+    ];
+    let history = if messages.len() > 10 { &messages[messages.len()-10..] } else { messages };
+    for m in history {
+        msgs.push(serde_json::json!({"role": m.role, "content": m.content}));
+    }
+
+    let body = serde_json::json!({
+        "model": model,
+        "messages": msgs,
+        "stream": false,
+    });
+
+    let client = http_client();
+    let resp = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .header("Authorization", format!("Bearer {}", settings.cloud_ai_api_key))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(120))
+        .send()
+        .await
+        .map_err(|e| format!("云端 AI 连接失败: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("云端 AI 错误 {}: {}", status, text));
+    }
+
+    let data: OpenAIResponse = resp.json().await.map_err(|e| format!("解析响应失败: {}", e))?;
+    data.choices.first()
+        .map(|c| c.message.content.clone())
+        .ok_or_else(|| "云端 AI 返回空响应".to_string())
 }
 
 // ——————————————————————————————————————————————
@@ -216,9 +301,7 @@ pub async fn ai_chat(
     messages: Vec<ChatMessage>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    let model = get_model(&state);
-
-    let client = http_client();
+    let settings = get_ai_settings(&state);
 
     // 收集实时系统状态注入上下文
     let context = build_context(&state);
@@ -228,7 +311,15 @@ pub async fn ai_chat(
         format!("{}\n\n【当前系统状态】\n{}", FILE_ASSISTANT_SYSTEM, context)
     };
 
-    // 构建对话上下文（最近 10 条）
+    // 路由：本地 Ollama 或云端 API
+    if !settings.local_ai && !settings.cloud_ai_api_key.is_empty() {
+        return cloud_chat(&settings, &system_prompt, &messages).await;
+    }
+
+    // 本地 Ollama 对话
+    let model = settings.ai_model.clone();
+    let client = http_client();
+
     let mut chat_msgs: Vec<OllamaChatMsg> = vec![
         OllamaChatMsg { role: "system".to_string(), content: system_prompt },
     ];

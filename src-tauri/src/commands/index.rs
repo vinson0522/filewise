@@ -197,6 +197,36 @@ pub struct CategoryStat {
     pub total_size: i64,
 }
 
+/// IPC: 按磁盘路径前缀统计文件分类（用于 Dashboard 磁盘关联文件分布）
+#[tauri::command]
+pub async fn get_category_stats_by_path(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<CategoryStat>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let like_pattern = format!("{}%", path.trim_end_matches('\\'));
+    let mut stmt = db.prepare(
+        "SELECT COALESCE(category, '其他') AS cat, COUNT(*) AS cnt, COALESCE(SUM(size), 0) AS sz
+         FROM file_index
+         WHERE path LIKE ?1
+         GROUP BY cat
+         ORDER BY sz DESC"
+    ).map_err(|e| e.to_string())?;
+
+    let stats = stmt.query_map(rusqlite::params![like_pattern], |row| {
+        Ok(CategoryStat {
+            category: row.get(0)?,
+            file_count: row.get(1)?,
+            total_size: row.get(2)?,
+        })
+    })
+    .map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+
+    Ok(stats)
+}
+
 /// IPC: 按文件分类统计（用于 Dashboard 图表）
 #[tauri::command]
 pub async fn get_category_stats(state: State<'_, AppState>) -> Result<Vec<CategoryStat>, String> {

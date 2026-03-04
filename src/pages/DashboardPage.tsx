@@ -4,7 +4,8 @@ import {
   AppstoreOutlined, ClearOutlined,
   CopyOutlined, DeleteOutlined, SearchOutlined,
 } from '@ant-design/icons';
-import { getDiskInfo, getIndexStats, getHealthScore, getCategoryStats, listAuditLog } from '../services/file.service';
+import { useState } from 'react';
+import { getDiskInfo, getIndexStats, getHealthScore, getCategoryStats, getCategoryStatsByPath, listAuditLog } from '../services/file.service';
 import type { HealthReport, CategoryStat, AuditEntry } from '../services/file.service';
 import { formatSize, formatDate } from '../utils/path.util';
 import { useAppStore } from '../stores/useAppStore';
@@ -30,9 +31,11 @@ export default function DashboardPage() {
     staleTime: 5 * 60_000,
   });
 
+  const [selectedDisk, setSelectedDisk] = useState<string>('');
+
   const { data: catStats = [] } = useQuery<CategoryStat[]>({
-    queryKey: ['category-stats'],
-    queryFn: getCategoryStats,
+    queryKey: ['category-stats', selectedDisk],
+    queryFn: () => selectedDisk ? getCategoryStatsByPath(selectedDisk) : getCategoryStats(),
     staleTime: 5 * 60_000,
   });
 
@@ -132,10 +135,16 @@ export default function DashboardPage() {
               const pct = Math.round(d.used_space / d.total_space * 100);
               const color = pct > 85 ? '#ff4d4f' : pct > 70 ? '#faad14' : '#1677ff';
               const label = d.name || d.mount_point.replace(/\\/g, '');
+              const isSelected = selectedDisk === d.mount_point;
               return (
-                <div className="disk-bar-wrap" key={d.mount_point}>
+                <div className="disk-bar-wrap" key={d.mount_point}
+                  style={{ cursor: 'pointer', padding: '6px 8px', borderRadius: 6, margin: '0 -8px',
+                    background: isSelected ? '#e6f4ff' : 'transparent',
+                    border: isSelected ? '1px solid #91caff' : '1px solid transparent',
+                    transition: 'all 0.15s' }}
+                  onClick={() => setSelectedDisk(isSelected ? '' : d.mount_point)}>
                   <div className="disk-bar-label">
-                    <span style={{ fontWeight: 500 }}>{label}</span>
+                    <span style={{ fontWeight: 500, color: isSelected ? '#1677ff' : undefined }}>{label}</span>
                     <span>{formatSize(d.used_space)} / {formatSize(d.total_space)} ({pct}%)</span>
                   </div>
                   <div className="disk-bar">
@@ -149,7 +158,10 @@ export default function DashboardPage() {
 
         {/* File Distribution */}
         <div className="section-card">
-          <div className="section-card-header"><h3>文件分布</h3></div>
+          <div className="section-card-header">
+            <h3>文件分布{selectedDisk ? ` (${selectedDisk.replace(/\\/g, '')})` : ''}</h3>
+            {selectedDisk && <Button type="link" size="small" onClick={() => setSelectedDisk('')}>显示全部</Button>}
+          </div>
           <div className="section-card-body">
             {catStats.length === 0 ? (
               <div style={{ color: '#bfbfbf', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>建立索引后显示</div>

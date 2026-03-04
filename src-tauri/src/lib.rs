@@ -95,6 +95,7 @@ pub fn run() {
             scan_and_index,
             search_files,
             get_category_stats,
+            get_category_stats_by_path,
             watch_directory,
             stop_watcher,
             get_watcher_status,

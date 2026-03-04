@@ -14,6 +14,8 @@ import SearchPage     from '../../pages/SearchPage';
 import ChatPage       from '../../pages/ChatPage';
 import ReportPage     from '../../pages/ReportPage';
 import SettingsPage   from '../../pages/SettingsPage';
+import HelpPage       from '../../pages/HelpPage';
+import ChangelogPage  from '../../pages/ChangelogPage';
 import '../../styles/app-shell.css';
 
 interface NavItem {
@@ -31,6 +33,8 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'chat',      label: 'AI 助手', icon: <MessageOutlined />,   section: '主要' },
   { key: 'report',    label: '操作报告', icon: <BarChartOutlined />,  section: '工具' },
   { key: 'settings',  label: '系统设置', icon: <SettingOutlined />,   section: '工具' },
+  { key: 'help',      label: '帮助中心', icon: <QuestionCircleOutlined />, section: '工具' },
+  { key: 'changelog', label: '版本中心', icon: <BarChartOutlined />,  section: '工具' },
 ];
 
 const PAGE_MAP: Record<PageKey, React.ReactNode> = {
@@ -41,6 +45,8 @@ const PAGE_MAP: Record<PageKey, React.ReactNode> = {
   chat:      <ChatPage />,
   report:    <ReportPage />,
   settings:  <SettingsPage />,
+  help:      <HelpPage />,
+  changelog: <ChangelogPage />,
 };
 
 export default function AppShell() {
@@ -56,13 +62,15 @@ export default function AppShell() {
           <span>FileWise</span>
         </div>
         <div className="header-actions">
-          <Tooltip title="通知">
-            <Badge count={3} size="small">
-              <Button type="text" size="small" icon={<BellOutlined />} />
+          <Tooltip title="版本更新">
+            <Badge count={0} size="small">
+              <Button type="text" size="small" icon={<BellOutlined />}
+                onClick={() => setCurrentPage('changelog')} />
             </Badge>
           </Tooltip>
           <Tooltip title="帮助">
-            <Button type="text" size="small" icon={<QuestionCircleOutlined />} />
+            <Button type="text" size="small" icon={<QuestionCircleOutlined />}
+              onClick={() => setCurrentPage('help')} />
           </Tooltip>
           <div className="header-divider" />
           <div className="header-user">

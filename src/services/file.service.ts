@@ -64,6 +64,10 @@ export async function getCategoryStats(): Promise<CategoryStat[]> {
   return safeInvoke<CategoryStat[]>('get_category_stats');
 }
 
+export async function getCategoryStatsByPath(path: string): Promise<CategoryStat[]> {
+  return safeInvoke<CategoryStat[]>('get_category_stats_by_path', { path });
+}
+
 export async function getIndexStats(): Promise<IndexStats> {
   return safeInvoke<IndexStats>('get_index_stats');
 }
@@ -194,6 +198,12 @@ export interface AppSettings {
   watch_dirs: string[];
   large_file_threshold_mb: number;
   ai_model: string;
+  index_dir: string;
+  quarantine_dir: string;
+  cloud_ai_provider: string;
+  cloud_ai_model: string;
+  cloud_ai_api_key: string;
+  cloud_ai_base_url: string;
 }
 
 export async function getSettings(): Promise<AppSettings> {

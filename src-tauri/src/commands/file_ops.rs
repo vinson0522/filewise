@@ -349,6 +349,37 @@ pub async fn pick_folder(app: tauri::AppHandle) -> Result<Option<String>, String
     Ok(result.map(|p| p.to_string()))
 }
 
+/// 获取隔离区目录：优先设置中的自定义路径，否则使用文件所在盘根目录下的 .filewise_quarantine
+fn get_quarantine_dir(state: &AppState, file_path: &std::path::Path) -> std::path::PathBuf {
+    // 1. 尝试从设置中读取自定义隔离目录
+    if let Ok(db) = state.db.lock() {
+        if let Ok(json) = db.query_row(
+            "SELECT value FROM settings WHERE key = 'app_settings'", [],
+            |r| r.get::<_, String>(0),
+        ) {
+            if let Ok(s) = serde_json::from_str::<serde_json::Value>(&json) {
+                if let Some(qdir) = s.get("quarantine_dir").and_then(|v| v.as_str()) {
+                    if !qdir.is_empty() {
+                        return std::path::PathBuf::from(qdir);
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. 使用文件所在盘符下的隐藏目录（避免跨盘）
+    if let Some(prefix) = file_path.components().next() {
+        let root = std::path::PathBuf::from(prefix.as_os_str());
+        let qdir = root.join(".filewise_quarantine");
+        if std::fs::create_dir_all(&qdir).is_ok() {
+            return qdir;
+        }
+    }
+
+    // 3. 兜底：应用数据目录
+    state.data_dir.join("quarantine")
+}
+
 /// IPC: 将文件移入隔离区（安全删除，记录到数据库，可恢复）
 #[tauri::command]
 pub async fn quarantine_file(
@@ -366,8 +397,8 @@ pub async fn quarantine_file(
         return Err(format!("文件不存在: {}", path));
     }
 
-    // 在应用数据目录创建隔离区子目录
-    let quarantine_dir = state.data_dir.join("quarantine");
+    // 隔离区目录：优先使用设置中的自定义路径，否则使用文件所在盘符
+    let quarantine_dir = get_quarantine_dir(&state, &p);
     std::fs::create_dir_all(&quarantine_dir).map_err(|e| e.to_string())?;
 
     // 用时间戳+UUID 作为隔离文件名，避免冲突
@@ -379,8 +410,11 @@ pub async fn quarantine_file(
     let file_hash = crate::engine::hasher::blake3_file_sync(&path).unwrap_or_default();
     let file_size = p.metadata().map(|m| m.len() as i64).unwrap_or(0);
 
-    // 移动到隔离区
-    std::fs::rename(&p, &quarantine_path).map_err(|e| e.to_string())?;
+    // 移动到隔离区（跨盘时使用 copy+delete）
+    if std::fs::rename(&p, &quarantine_path).is_err() {
+        std::fs::copy(&p, &quarantine_path).map_err(|e| format!("复制到隔离区失败: {}", e))?;
+        std::fs::remove_file(&p).map_err(|e| format!("删除源文件失败: {}", e))?;
+    }
 
     // 记录到数据库（默认保留 30 天）
     let expires_at = ts + 30 * 86400;
@@ -486,8 +520,11 @@ pub async fn restore_quarantine(
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
 
-    // 恢复文件
-    std::fs::rename(qpath, orig).map_err(|e| e.to_string())?;
+    // 恢复文件（跨盘时使用 copy+delete）
+    if std::fs::rename(qpath, orig).is_err() {
+        std::fs::copy(qpath, orig).map_err(|e| format!("恢复复制失败: {}", e))?;
+        std::fs::remove_file(qpath).map_err(|e| format!("删除隔离文件失败: {}", e))?;
+    }
 
     // 删除数据库记录
     {

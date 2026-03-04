@@ -76,7 +76,9 @@ export type PageKey =
   | 'search'
   | 'chat'
   | 'report'
-  | 'settings';
+  | 'settings'
+  | 'help'
+  | 'changelog';
 
 export type FileCategory =
   | 'document'

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button, Select, Switch, message, Spin, Input, Tag } from 'antd';
-import { PlusOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, SaveOutlined, EyeInvisibleOutlined, EyeOutlined } from '@ant-design/icons';
 import { getSettings, saveSettings, listOllamaModels } from '../services/file.service';
 import type { AppSettings, OllamaModel } from '../services/file.service';
 
@@ -11,7 +11,21 @@ const DEFAULT: AppSettings = {
   watch_dirs: [],
   large_file_threshold_mb: 100,
   ai_model: 'qwen2.5:7b',
+  index_dir: '',
+  quarantine_dir: '',
+  cloud_ai_provider: '',
+  cloud_ai_model: '',
+  cloud_ai_api_key: '',
+  cloud_ai_base_url: '',
 };
+
+const CLOUD_PROVIDERS = [
+  { value: 'qwen', label: '通义千问 (Qwen)' },
+  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'moonshot', label: 'Moonshot (Kimi)' },
+  { value: 'zhipu', label: '智谱 (GLM)' },
+  { value: 'openai', label: 'OpenAI' },
+];
 
 export default function SettingsPage() {
   const [cfg, setCfg] = useState<AppSettings>(DEFAULT);
@@ -20,6 +34,7 @@ export default function SettingsPage() {
   const [newPath, setNewPath] = useState('');
   const [newWatchDir, setNewWatchDir] = useState('');
   const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
     getSettings().then(s => { setCfg(s); setLoading(false); })
@@ -98,10 +113,42 @@ export default function SettingsPage() {
                       { value: 'minicpm-v',   label: 'MiniCPM-V（视觉）' },
                     ]} />
             )}
-            {row('云端 API', '用于复杂任务的云端模型（可选）', <Button size="small">配置 API Key</Button>)}
           </div>
         </div>
 
+        {/* Cloud AI */}
+        <div className="section-card">
+          <div className="section-card-header"><h3>云端 AI 配置</h3></div>
+          <div className="section-card-body">
+            {row('云端厂商', '关闭本地模型后自动使用云端',
+              <Select value={cfg.cloud_ai_provider || undefined} onChange={v => set('cloud_ai_provider', v)}
+                placeholder="选择厂商" allowClear style={{ width: 180 }} options={CLOUD_PROVIDERS} />
+            )}
+            {cfg.cloud_ai_provider && row('API Key', null,
+              <Input
+                size="small" style={{ width: 220 }}
+                type={showApiKey ? 'text' : 'password'}
+                value={cfg.cloud_ai_api_key}
+                onChange={e => set('cloud_ai_api_key', e.target.value)}
+                placeholder="sk-..."
+                suffix={<span style={{ cursor: 'pointer' }} onClick={() => setShowApiKey(!showApiKey)}>
+                  {showApiKey ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                </span>}
+              />
+            )}
+            {cfg.cloud_ai_provider && row('模型名称', '留空使用厂商默认模型',
+              <Input size="small" style={{ width: 220 }} value={cfg.cloud_ai_model}
+                onChange={e => set('cloud_ai_model', e.target.value)} placeholder="如 deepseek-chat" />
+            )}
+            {cfg.cloud_ai_provider && row('自定义 Base URL', '留空使用厂商默认地址',
+              <Input size="small" style={{ width: 220 }} value={cfg.cloud_ai_base_url}
+                onChange={e => set('cloud_ai_base_url', e.target.value)} placeholder="https://api.example.com" />
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid-2" style={{ marginTop: 0 }}>
         {/* Organize & Clean */}
         <div className="section-card">
           <div className="section-card-header"><h3>整理与清理</h3></div>
@@ -115,6 +162,21 @@ export default function SettingsPage() {
                   { value: '50', label: '50 MB' }, { value: '100', label: '100 MB' },
                   { value: '200', label: '200 MB' }, { value: '500', label: '500 MB' },
                 ]} />
+            )}
+          </div>
+        </div>
+
+        {/* Storage paths */}
+        <div className="section-card">
+          <div className="section-card-header"><h3>存储路径</h3></div>
+          <div className="section-card-body">
+            {row('索引存放目录', '留空使用默认应用数据目录',
+              <Input size="small" style={{ width: 220 }} value={cfg.index_dir}
+                onChange={e => set('index_dir', e.target.value)} placeholder="默认: AppData/filewise" />
+            )}
+            {row('隔离区目录', '留空则自动使用文件所在盘符',
+              <Input size="small" style={{ width: 220 }} value={cfg.quarantine_dir}
+                onChange={e => set('quarantine_dir', e.target.value)} placeholder="默认: 文件同盘" />
             )}
           </div>
         </div>
@@ -185,7 +247,7 @@ export default function SettingsPage() {
             {row('开机自启动', null, <Switch checked={autoStart} onChange={setAutoStart} />)}
             {row('最小化到托盘', null, <Switch checked={toTray} onChange={setToTray} />)}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, color: '#8c8c8c' }}>FileWise v1.0.0</span>
+              <span style={{ fontSize: 13, color: '#8c8c8c' }}>FileWise v1.4.0</span>
               <Button type="primary" size="small" icon={<SaveOutlined />}
                 loading={saving} onClick={handleSave}>保存设置</Button>
             </div>

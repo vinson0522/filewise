@@ -6,6 +6,7 @@ import { aiChat, checkOllama } from '../services/file.service';
 import type { ChatMessage } from '../services/file.service';
 import { detectAndExecute } from '../services/agent';
 import type { PageKey } from '../types';
+import Markdown from 'react-markdown';
 
 const QUICK_CMDS = [
   '整理桌面文件',
@@ -138,11 +139,13 @@ ${agentResult.text}
               </div>
               <div style={{
                 maxWidth: '72%', padding: '12px 16px', borderRadius: 8, fontSize: 14,
-                lineHeight: 1.8, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                lineHeight: 1.8, wordBreak: 'break-word',
                 background: m.role === 'ai' ? '#fafafa' : '#1677ff',
                 color: m.role === 'ai' ? '#262626' : '#fff',
               }}>
-                {m.text}
+                {m.role === 'ai'
+                  ? <div className="md-body"><Markdown>{m.text}</Markdown></div>
+                  : <span style={{ whiteSpace: 'pre-wrap' }}>{m.text}</span>}
                 {m.actionResult && m.actionResult.navigateTo && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e8e8e8' }}>
                     <Button type="primary" size="small" icon={<ArrowRightOutlined />}
