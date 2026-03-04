@@ -4,8 +4,8 @@ import {
   AppstoreOutlined, ClearOutlined,
   CopyOutlined, DeleteOutlined, SearchOutlined,
 } from '@ant-design/icons';
-import { getDiskInfo, getIndexStats, getHealthScore, getCategoryStats } from '../services/file.service';
-import type { HealthReport, CategoryStat } from '../services/file.service';
+import { getDiskInfo, getIndexStats, getHealthScore, getCategoryStats, listAuditLog } from '../services/file.service';
+import type { HealthReport, CategoryStat, AuditEntry } from '../services/file.service';
 import { formatSize, formatDate } from '../utils/path.util';
 import { useAppStore } from '../stores/useAppStore';
 
@@ -35,6 +35,19 @@ export default function DashboardPage() {
     queryFn: getCategoryStats,
     staleTime: 5 * 60_000,
   });
+
+  const { data: recentLogs = [] } = useQuery<AuditEntry[]>({
+    queryKey: ['audit-log'],
+    queryFn: listAuditLog,
+    staleTime: 60_000,
+  });
+
+  const actionLabel: Record<string, string> = {
+    move: '移动', clean: '清理', quarantine: '隔离', index: '索引', restore: '恢复',
+  };
+  const actionColor: Record<string, string> = {
+    move: '#1677ff', clean: '#52c41a', quarantine: '#fa8c16', index: '#722ed1', restore: '#13c2c2',
+  };
 
   const quickActions = [
     { icon: <AppstoreOutlined />, title: '智能整理',       desc: '按类型自动分类归档', bg: '#e6f4ff', color: '#1677ff', page: 'organize' as const },
@@ -182,6 +195,29 @@ export default function DashboardPage() {
                   <h4>{a.title}</h4>
                   <p>{a.desc}</p>
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="section-card">
+          <div className="section-card-header">
+            <h3>最近活动</h3>
+            <Button type="link" size="small" onClick={() => setCurrentPage('report')}>查看全部</Button>
+          </div>
+          <div className="section-card-body">
+            {recentLogs.length === 0 ? (
+              <div style={{ color: '#bfbfbf', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>暂无操作记录</div>
+            ) : recentLogs.slice(0, 6).map((r, i) => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0',
+                borderBottom: i < Math.min(recentLogs.length, 6) - 1 ? '1px solid #fafafa' : 'none', fontSize: 13 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                  background: actionColor[r.action] ?? '#8c8c8c' }} />
+                <span style={{ color: '#595959', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {actionLabel[r.action] ?? r.action}: {r.path?.split(/[\\/]/).pop() ?? r.detail}
+                </span>
+                <span style={{ color: '#bfbfbf', fontSize: 11, flexShrink: 0 }}>{formatDate(r.ts)}</span>
               </div>
             ))}
           </div>
