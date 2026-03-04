@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Button, Select, Switch, message, Spin, Input, Tag } from 'antd';
 import { PlusOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
-import { getSettings, saveSettings } from '../services/file.service';
-import type { AppSettings } from '../services/file.service';
+import { getSettings, saveSettings, listOllamaModels } from '../services/file.service';
+import type { AppSettings, OllamaModel } from '../services/file.service';
 
 const DEFAULT: AppSettings = {
   local_ai: true, auto_organize: false, snapshot_before_op: true,
@@ -17,10 +17,12 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newPath, setNewPath] = useState('');
+  const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
 
   useEffect(() => {
     getSettings().then(s => { setCfg(s); setLoading(false); })
       .catch(() => setLoading(false));
+    listOllamaModels().then(setOllamaModels).catch(() => setOllamaModels([]));
   }, []);
 
   async function handleSave() {
@@ -77,12 +79,15 @@ export default function SettingsPage() {
           <div className="section-card-header"><h3>AI 模型配置</h3></div>
           <div className="section-card-body">
             {row('本地模型推理', '使用 Ollama 在本地运行 AI 模型', <Switch checked={localAI} onChange={setLocalAI} />)}
-            {localAI && row('模型选择', null,
-              <Select value={cfg.ai_model} onChange={v => set('ai_model', v)} style={{ width: 200 }} options={[
-                { value: 'qwen2.5:7b',  label: 'Qwen 2.5-7B（推荐）' },
-                { value: 'llama3.2:3b', label: 'Llama 3.2-3B（轻量）' },
-                { value: 'minicpm-v',   label: 'MiniCPM-V（视觉）' },
-              ]} />
+            {localAI && row('模型选择', ollamaModels.length > 0 ? `已检测到 ${ollamaModels.length} 个本地模型` : 'Ollama 未运行或无已安装模型',
+              <Select value={cfg.ai_model} onChange={v => set('ai_model', v)} style={{ width: 220 }}
+                options={ollamaModels.length > 0
+                  ? ollamaModels.map(m => ({ value: m.name, label: m.name }))
+                  : [
+                      { value: 'qwen2.5:7b',  label: 'Qwen 2.5-7B（推荐）' },
+                      { value: 'llama3.2:3b', label: 'Llama 3.2-3B（轻量）' },
+                      { value: 'minicpm-v',   label: 'MiniCPM-V（视觉）' },
+                    ]} />
             )}
             {row('云端 API', '用于复杂任务的云端模型（可选）', <Button size="small">配置 API Key</Button>)}
           </div>
