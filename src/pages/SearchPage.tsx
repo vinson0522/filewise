@@ -5,8 +5,8 @@ import {
   FileExcelOutlined, FileImageOutlined, FileOutlined,
   FolderOpenOutlined, DatabaseOutlined,
 } from '@ant-design/icons';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { searchFiles, scanAndIndex } from '../services/file.service';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { searchFiles, scanAndIndex, quarantineFile, pickFolder, watchDirectory, revealInExplorer } from '../services/file.service';
 import type { SearchResult } from '../types';
 import { formatSize, formatDate, getParentDir } from '../utils/path.util';
 
@@ -24,10 +24,41 @@ function getFileIcon(name: string): { icon: React.ReactNode; color: string } {
 }
 
 export default function SearchPage() {
+  const qc = useQueryClient();
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
   const [scanRoot, setScanRoot] = useState('C:\\Users');
+  const [watchActive, setWatchActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  async function revealPath(path: string) {
+    try { await revealInExplorer(path); }
+    catch { message.error('无法打开路径'); }
+  }
+
+  async function handleQuarantine(path: string) {
+    try {
+      const r = await quarantineFile(path);
+      message.success(r.message);
+      qc.invalidateQueries({ queryKey: ['search', submitted] });
+      qc.invalidateQueries({ queryKey: ['quarantine'] });
+    } catch (e) { message.error('隔离失败：' + String(e)); }
+  }
+
+  async function handleWatch() {
+    try {
+      if (watchActive) {
+        const { stopWatcher } = await import('../services/file.service');
+        await stopWatcher();
+        setWatchActive(false);
+        message.info('已停止监听');
+      } else {
+        await watchDirectory(scanRoot);
+        setWatchActive(true);
+        message.success('已开始监听: ' + scanRoot);
+      }
+    } catch (e) { message.error('监听操作失败：' + String(e)); }
+  }
 
   const { data: results = [], isFetching } = useQuery<SearchResult[]>({
     queryKey: ['search', submitted],
@@ -89,9 +120,18 @@ export default function SearchPage() {
             style={{ border: '1px solid #d9d9d9', borderRadius: 6, padding: '4px 8px', fontSize: 13, outline: 'none' }}>
             {SCAN_ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
+          <Button icon={<FolderOpenOutlined />} size="small"
+            onClick={async () => { const p = await pickFolder(); if (p) setScanRoot(p); }}>浏览</Button>
           <Button icon={<DatabaseOutlined />} loading={indexMutation.isPending}
             onClick={() => indexMutation.mutate(scanRoot)}>
             {indexMutation.isPending ? '索引中...' : '建立索引'}
+          </Button>
+          <Button
+            type={watchActive ? 'default' : 'dashed'}
+            danger={watchActive}
+            size="small"
+            onClick={handleWatch}>
+            {watchActive ? '停止监听' : '开始监听'}
           </Button>
         </div>
       </div>
@@ -116,7 +156,6 @@ export default function SearchPage() {
                 <div key={i} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
                   borderBottom: i < results.length - 1 ? '1px solid #fafafa' : 'none',
-                  cursor: 'pointer',
                 }}
                   onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
                   onMouseLeave={e => (e.currentTarget.style.background = '')}>
@@ -127,9 +166,17 @@ export default function SearchPage() {
                     <div style={{ fontSize: 12, color: '#8c8c8c',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dir}</div>
                   </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ textAlign: 'right', flexShrink: 0, marginRight: 8 }}>
                     <div style={{ fontSize: 13, color: '#595959' }}>{formatSize(r.size)}</div>
                     <div style={{ fontSize: 12, color: '#bfbfbf' }}>{formatDate(r.modified_at)}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <Button size="small" icon={<FolderOpenOutlined />}
+                      onClick={() => revealPath(r.path)}
+                      title="在资源管理器中显示">定位</Button>
+                    <Button size="small" danger
+                      onClick={() => handleQuarantine(r.path)}
+                      title="移入隔离区">隔离</Button>
                   </div>
                 </div>
               );

@@ -57,6 +57,9 @@ pub fn run() {
             get_index_stats,
             scan_and_index,
             search_files,
+            watch_directory,
+            stop_watcher,
+            get_watcher_status,
             // snapshot
             list_snapshots,
             restore_snapshot,

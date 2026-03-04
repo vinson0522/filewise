@@ -191,6 +191,20 @@ export async function listAuditLog(): Promise<AuditEntry[]> {
   return safeInvoke<AuditEntry[]>('list_audit_log');
 }
 
+// ===================== 文件监听 =====================
+
+export async function watchDirectory(path: string): Promise<string> {
+  return safeInvoke<string>('watch_directory', { path });
+}
+
+export async function stopWatcher(): Promise<string> {
+  return safeInvoke<string>('stop_watcher');
+}
+
+export async function getWatcherStatus(): Promise<string[]> {
+  return safeInvoke<string[]>('get_watcher_status');
+}
+
 // ===================== 文件打开 =====================
 
 /** 用资源管理器打开文件所在目录 */

@@ -3,6 +3,7 @@ use tauri::State;
 use crate::state::AppState;
 use crate::security::PathGuard;
 use crate::engine::scanner::scan_batched;
+use crate::engine::watcher::start_watcher;
 use chrono::Utc;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -121,4 +122,45 @@ pub struct SearchResult {
     pub modified_at: Option<i64>,
     pub category: Option<String>,
     pub score: f32,
+}
+
+/// IPC: 启动文件监听（自动增量更新索引）
+#[tauri::command]
+pub async fn watch_directory(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let guard = PathGuard::new();
+    let p = std::path::PathBuf::from(&path);
+    guard.validate(&p).map_err(|e| e.to_string())?;
+    if !p.exists() {
+        return Err(format!("路径不存在: {}", path));
+    }
+
+    let db_arc = state.db_arc.clone();
+    let handle = start_watcher(vec![path.clone()], db_arc)
+        .map_err(|e| e.to_string())?;
+
+    let mut watcher_lock = state.watcher.lock().map_err(|e| e.to_string())?;
+    *watcher_lock = Some(handle);
+
+    Ok(format!("已开始监听: {}", path))
+}
+
+/// IPC: 停止文件监听
+#[tauri::command]
+pub async fn stop_watcher(state: State<'_, AppState>) -> Result<String, String> {
+    let mut watcher_lock = state.watcher.lock().map_err(|e| e.to_string())?;
+    let count = watcher_lock.as_ref().map(|h| h.watched_paths.len()).unwrap_or(0);
+    *watcher_lock = None; // drop → notify watcher 自动停止
+    Ok(format!("已停止监听，共 {} 个路径", count))
+}
+
+/// IPC: 查询当前监听状态
+#[tauri::command]
+pub async fn get_watcher_status(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let watcher_lock = state.watcher.lock().map_err(|e| e.to_string())?;
+    Ok(watcher_lock.as_ref()
+        .map(|h| h.watched_paths.clone())
+        .unwrap_or_default())
 }

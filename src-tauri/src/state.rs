@@ -1,14 +1,19 @@
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 use anyhow::Result;
+use crate::engine::watcher::WatcherHandle;
 
 /// 全局应用状态，注入 Tauri managed state
 pub struct AppState {
     /// SQLite 数据库连接（Mutex 保证线程安全）
     pub db: Mutex<Connection>,
+    /// 用于 FileWatcher 的共享连接句柄
+    pub db_arc: Arc<Mutex<rusqlite::Connection>>,
     /// 应用数据目录（用于存放索引、隔离区等）
     pub data_dir: PathBuf,
+    /// 文件监听器句柄（保持活跃直到 stop）
+    pub watcher: Mutex<Option<WatcherHandle>>,
 }
 
 impl AppState {
@@ -31,9 +36,18 @@ impl AppState {
 
         log::info!("数据库已初始化: {}", db_path.display());
 
+        // 建立用于 FileWatcher 的共享连接
+        let db_arc = {
+            let conn2 = rusqlite::Connection::open(&db_path)?;
+            conn2.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;").ok();
+            Arc::new(Mutex::new(conn2))
+        };
+
         Ok(AppState {
             db: Mutex::new(conn),
+            db_arc,
             data_dir,
+            watcher: Mutex::new(None),
         })
     }
 
