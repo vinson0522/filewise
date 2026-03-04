@@ -17,16 +17,16 @@ function getTargetSubdir(name: string, strategy: string): string {
     const now = new Date();
     return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/`;
   }
-  // 按类型分类
-  if (['docx','doc','pdf','txt','md','pptx','ppt'].includes(ext)) return '文档/';
-  if (['xlsx','xls','csv'].includes(ext)) return '表格/';
-  if (['jpg','jpeg','png','gif','bmp','webp','svg','heic'].includes(ext)) return '图片/';
-  if (['mp4','avi','mov','mkv','wmv','flv'].includes(ext)) return '视频/';
-  if (['mp3','wav','flac','aac','ogg'].includes(ext)) return '音频/';
-  if (['zip','rar','7z','tar','gz','bz2'].includes(ext)) return '压缩包/';
-  if (['js','ts','jsx','tsx','py','rs','go','java','cpp','c','sh'].includes(ext)) return '代码/';
-  if (['exe','msi','dmg','deb'].includes(ext)) return '安装包/';
-  return '其他/';
+  // 按类型分类（Windows 使用反斜杠）
+  if (['docx','doc','pdf','txt','md','pptx','ppt'].includes(ext)) return '文档\\';
+  if (['xlsx','xls','csv'].includes(ext)) return '表格\\';
+  if (['jpg','jpeg','png','gif','bmp','webp','svg','heic'].includes(ext)) return '图片\\';
+  if (['mp4','avi','mov','mkv','wmv','flv'].includes(ext)) return '视频\\';
+  if (['mp3','wav','flac','aac','ogg'].includes(ext)) return '音频\\';
+  if (['zip','rar','7z','tar','gz','bz2'].includes(ext)) return '压缩包\\';
+  if (['js','ts','jsx','tsx','py','rs','go','java','cpp','c','sh'].includes(ext)) return '代码\\';
+  if (['exe','msi','dmg','deb'].includes(ext)) return '安装包\\';
+  return '其他\\';
 }
 
 
