@@ -72,14 +72,14 @@ export default function DashboardPage() {
                 加载中...
               </div>
             ) : disks.map((d) => {
-              const used = d.total_space - d.available_space;
-              const pct = Math.round(used / d.total_space * 100);
+              const pct = Math.round(d.used_space / d.total_space * 100);
               const color = pct > 85 ? '#ff4d4f' : pct > 70 ? '#faad14' : '#1677ff';
+              const label = d.name || d.mount_point.replace(/\\/g, '');
               return (
                 <div className="disk-bar-wrap" key={d.mount_point}>
                   <div className="disk-bar-label">
-                    <span>{d.name} {d.mount_point}</span>
-                    <span>{formatSize(used)} / {formatSize(d.total_space)} ({pct}%)</span>
+                    <span style={{ fontWeight: 500 }}>{label}</span>
+                    <span>{formatSize(d.used_space)} / {formatSize(d.total_space)} ({pct}%)</span>
                   </div>
                   <div className="disk-bar">
                     <div className="disk-bar-fill" style={{ width: `${pct}%`, background: color }} />

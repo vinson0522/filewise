@@ -14,6 +14,8 @@ export interface DiskInfo {
   mount_point: string;
   total_space: number;
   available_space: number;
+  used_space: number;
+  fs_type: string;
 }
 
 export interface MoveOperation {

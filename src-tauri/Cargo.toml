@@ -67,3 +67,10 @@ uuid             = { version = "1", features = ["v4"] }
 # Time
 chrono           = { version = "0.4", features = ["serde"] }
 
+# System info (disk usage, memory)
+sysinfo          = { version = "0.33", features = ["disk"] }
+
+# Windows API (temp paths, shell known folders)
+[target.'cfg(windows)'.dependencies]
+winapi           = { version = "0.3", features = ["shlobj", "knownfolders", "combaseapi"] }
+
