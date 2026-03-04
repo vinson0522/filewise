@@ -4,6 +4,7 @@ pub mod engine;
 pub mod security;
 pub mod state;
 
+use commands::ai::*;
 use commands::clean::*;
 use commands::file_ops::*;
 use commands::index::*;
@@ -69,6 +70,11 @@ pub fn run() {
             save_settings,
             // audit log
             list_audit_log,
+            // AI
+            check_ollama,
+            list_ollama_models,
+            ai_chat,
+            ai_classify_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

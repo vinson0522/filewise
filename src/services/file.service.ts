@@ -205,6 +205,41 @@ export async function getWatcherStatus(): Promise<string[]> {
   return safeInvoke<string[]>('get_watcher_status');
 }
 
+// ===================== AI =====================
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface OllamaModel {
+  name: string;
+  size: number;
+}
+
+export interface ClassifySuggestion {
+  file: string;
+  suggested_category: string;
+  suggested_folder: string;
+  reason: string;
+}
+
+export async function checkOllama(): Promise<boolean> {
+  return safeInvoke<boolean>('check_ollama');
+}
+
+export async function listOllamaModels(): Promise<OllamaModel[]> {
+  return safeInvoke<OllamaModel[]>('list_ollama_models');
+}
+
+export async function aiChat(messages: ChatMessage[]): Promise<string> {
+  return safeInvoke<string>('ai_chat', { messages });
+}
+
+export async function aiClassifyFiles(fileNames: string[]): Promise<ClassifySuggestion[]> {
+  return safeInvoke<ClassifySuggestion[]>('ai_classify_files', { fileNames });
+}
+
 // ===================== 文件打开 =====================
 
 /** 用资源管理器打开文件所在目录 */
