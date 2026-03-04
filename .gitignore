@@ -1,0 +1,48 @@
+# ===== 敏感文件（绝对不提交）=====
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# ===== Rust =====
+target/
+src-tauri/gen/
+
+# ===== Python AI Sidecar =====
+ai-sidecar/.venv/
+ai-sidecar/__pycache__/
+ai-sidecar/**/__pycache__/
+ai-sidecar/**/*.pyc
+ai-sidecar/.ruff_cache/
+ai-sidecar/.mypy_cache/
+
+# ===== 本地数据库（含用户数据，不提交）=====
+*.db
+*.db-shm
+*.db-wal
+
+# ===== Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

@@ -1,0 +1,69 @@
+[package]
+name = "filewise"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "filewise_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri            = { version = "2", features = [] }
+tauri-plugin-opener  = "2"
+tauri-plugin-dialog  = "2"
+tauri-plugin-notification = "2"
+
+# Serialization
+serde            = { version = "1", features = ["derive"] }
+serde_json       = "1"
+
+# Async runtime
+tokio            = { version = "1", features = ["full"] }
+
+# File traversal & watching
+walkdir          = "2"
+notify           = "6"
+ignore           = "0.4"
+
+# Hashing (integrity + dedup)
+blake3           = "1"
+
+# Database (bundled SQLite)
+rusqlite         = { version = "0.31", features = ["bundled"] }
+
+# Full-text search
+tantivy          = "0.22"
+
+# Parallel processing
+rayon            = "1"
+
+# Error handling
+anyhow           = "1"
+thiserror        = "1"
+
+# Logging
+log              = "0.4"
+env_logger       = "0.11"
+
+# Encryption (AES-256-GCM for DB key)
+aes-gcm          = "0.10"
+keyring          = "3"
+rand             = "0.8"
+hex              = "0.4"
+
+# UUID for snapshots
+uuid             = { version = "1", features = ["v4"] }
+
+# Time
+chrono           = { version = "0.4", features = ["serde"] }
+
