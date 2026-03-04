@@ -1,15 +1,16 @@
-import { useQuery } from '@tanstack/react-query';
-import { Button } from 'antd';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Alert } from 'antd';
 import {
   AppstoreOutlined, ClearOutlined,
-  CopyOutlined, DeleteOutlined,
+  CopyOutlined, DeleteOutlined, SearchOutlined,
 } from '@ant-design/icons';
 import { getDiskInfo, getIndexStats } from '../services/file.service';
-import { formatSize } from '../utils/path.util';
+import { formatSize, formatDate } from '../utils/path.util';
 import { useAppStore } from '../stores/useAppStore';
 
 export default function DashboardPage() {
   const { setCurrentPage } = useAppStore();
+  const qc = useQueryClient();
 
   const { data: disks = [] } = useQuery({
     queryKey: ['disk-info'],
@@ -29,6 +30,8 @@ export default function DashboardPage() {
     { icon: <DeleteOutlined />,   title: '大文件扫描',     desc: '发现空间占用大文件', bg: '#f9f0ff', color: '#722ed1', page: 'clean' as const },
   ];
 
+  const notIndexed = !stats || stats.total_files === 0;
+
   return (
     <div>
       <div className="page-header">
@@ -36,19 +39,33 @@ export default function DashboardPage() {
         <p>文件系统状态一览</p>
       </div>
 
+      {notIndexed && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="尚未建立文件索引"
+          description="前往搜索页选择目录并执行“建立索引”，之后可使用全文搜索、重复检测、大文件扫描等功能。"
+          action={
+            <Button size="small" icon={<SearchOutlined />}
+              onClick={() => setCurrentPage('search')}>前往搜索页</Button>
+          }
+        />
+      )}
+
       {/* Stats */}
       <div className="grid-4 mb-20">
         <div className="stat-card">
-          <div className="stat-label">总文件数</div>
+          <div className="stat-label">索引文件数</div>
           <div><span className="stat-value">{stats?.total_files.toLocaleString() ?? '--'}</span></div>
-          <div className="stat-extra">索引中</div>
+          <div className="stat-extra">上次扫描: {formatDate(stats?.last_indexed)}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">总占用空间</div>
+          <div className="stat-label">索引总大小</div>
           <div>
             <span className="stat-value">{stats ? formatSize(stats.total_size) : '--'}</span>
           </div>
-          <div className="stat-extra">已索引</div>
+          <div className="stat-extra">已建立索引</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">可释放空间</div>
@@ -67,7 +84,7 @@ export default function DashboardPage() {
         <div className="section-card">
           <div className="section-card-header">
             <h3>磁盘使用</h3>
-            <Button type="link" size="small">刷新</Button>
+            <Button type="link" size="small" onClick={() => qc.invalidateQueries({ queryKey: ['disk-info'] })}>刷新</Button>
           </div>
           <div className="section-card-body">
             {disks.length === 0 ? (
