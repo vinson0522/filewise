@@ -18,6 +18,11 @@ async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promi
 
 // ===================== 文件扫描 =====================
 
+/** 打开系统原生文件夹选择对话框，返回选中路径或 null */
+export async function pickFolder(): Promise<string | null> {
+  return safeInvoke<string | null>('pick_folder');
+}
+
 export async function scanDirectoryShallow(path: string): Promise<FileEntry[]> {
   const { valid, reason } = validatePath(path);
   if (!valid) throw new Error(reason);

@@ -3,9 +3,10 @@ import { Button, Checkbox, Select, Tag, Spin, message } from 'antd';
 import {
   ArrowRightOutlined, CheckOutlined, FolderOutlined,
   SafetyOutlined, ThunderboltOutlined, FileOutlined,
+  FolderOpenOutlined,
 } from '@ant-design/icons';
 import { useMutation } from '@tanstack/react-query';
-import { scanDirectoryShallow, moveFiles } from '../services/file.service';
+import { scanDirectoryShallow, moveFiles, pickFolder } from '../services/file.service';
 import type { FileEntry, MoveOperation } from '../types';
 import { inferCategory, formatSize } from '../utils/path.util';
 
@@ -108,7 +109,7 @@ export default function OrganizePage() {
       {/* Config bar */}
       <div className="section-card mb-16">
         <div className="section-card-body">
-          <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
             <span style={{ fontSize: 13, color: '#595959', flexShrink: 0 }}>扫描目录：</span>
             <input
               style={{ flex: 1, border: '1px solid #d9d9d9', borderRadius: 6, padding: '7px 12px', fontSize: 13, outline: 'none' }}
@@ -117,12 +118,16 @@ export default function OrganizePage() {
               onChange={e => setScanPath(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleScan()}
             />
+            <Button icon={<FolderOpenOutlined />}
+              onClick={async () => { const p = await pickFolder(); if (p) setScanPath(p); }}>
+              浏览
+            </Button>
           </div>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span style={{ fontSize: 13, color: '#595959', flexShrink: 0 }}>整理策略：</span>
             <Select value={strategy} onChange={setStrategy} style={{ width: 120 }} options={[
-              { value: 'type',    label: '按文件类型' },
-              { value: 'date',    label: '按日期' },
+              { value: 'type', label: '按文件类型' },
+              { value: 'date', label: '按日期' },
             ]} />
             <span style={{ fontSize: 13, color: '#595959', flexShrink: 0 }}>输出目录：</span>
             <input
@@ -131,6 +136,10 @@ export default function OrganizePage() {
               value={outputBase}
               onChange={e => setOutputBase(e.target.value)}
             />
+            <Button icon={<FolderOpenOutlined />}
+              onClick={async () => { const p = await pickFolder(); if (p) setOutputBase(p); }}>
+              浏览
+            </Button>
             <Button type="primary" icon={<ThunderboltOutlined />}
               loading={scanning} onClick={handleScan}>开始扫描</Button>
           </div>

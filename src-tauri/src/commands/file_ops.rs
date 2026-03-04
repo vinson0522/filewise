@@ -304,7 +304,7 @@ pub async fn scan_duplicates(path: String) -> Result<Vec<DupGroup>, String> {
 
     for (_, files) in size_map.iter().filter(|(_, v)| v.len() > 1) {
         for file_path in files {
-            match compute_file_hash(file_path) {
+            match crate::engine::hasher::blake3_file_sync(file_path) {
                 Ok(hash) => {
                     hash_map.entry(hash).or_default().push(file_path.clone());
                 }
@@ -329,11 +329,6 @@ pub async fn scan_duplicates(path: String) -> Result<Vec<DupGroup>, String> {
     Ok(result)
 }
 
-fn compute_file_hash(path: &str) -> Result<String, std::io::Error> {
-    let data = std::fs::read(path)?;
-    let hash = blake3::hash(&data);
-    Ok(hash.to_hex().to_string())
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DupGroup {
@@ -343,9 +338,23 @@ pub struct DupGroup {
     pub total_wasted: u64,  // 浪费的空间（副本数-1）× 大小
 }
 
-/// IPC: 将文件移入隔离区（安全删除）
+/// IPC: 打开系统原生文件夹选择对话框
 #[tauri::command]
-pub async fn quarantine_file(path: String) -> Result<OperationResult, String> {
+pub async fn pick_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let result = app.dialog()
+        .file()
+        .set_title("选择目录")
+        .blocking_pick_folder();
+    Ok(result.map(|p| p.to_string()))
+}
+
+/// IPC: 将文件移入隔离区（安全删除，记录到数据库，可恢复）
+#[tauri::command]
+pub async fn quarantine_file(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<OperationResult, String> {
     let guard = PathGuard::new();
     let p = std::path::PathBuf::from(&path);
 
@@ -353,7 +362,102 @@ pub async fn quarantine_file(path: String) -> Result<OperationResult, String> {
     if !PathGuard::is_safe_to_delete(&p) {
         return Err(format!("拒绝删除系统关键文件: {}", path));
     }
+    if !p.exists() {
+        return Err(format!("文件不存在: {}", path));
+    }
 
-    // TODO: 实现隔离区逻辑
-    Ok(OperationResult { success: true, processed: 1, message: "文件已移入隔离区".into() })
+    // 在应用数据目录创建隔离区子目录
+    let quarantine_dir = state.data_dir.join("quarantine");
+    std::fs::create_dir_all(&quarantine_dir).map_err(|e| e.to_string())?;
+
+    // 用时间戳+UUID 作为隔离文件名，避免冲突
+    let ts = Utc::now().timestamp();
+    let unique_name = format!("{}_{}", ts, Uuid::new_v4().to_string().split('-').next().unwrap_or("x"));
+    let quarantine_path = quarantine_dir.join(&unique_name);
+
+    // 计算哈希（流式，防止 OOM）
+    let file_hash = crate::engine::hasher::blake3_file_sync(&path).unwrap_or_default();
+    let file_size = p.metadata().map(|m| m.len() as i64).unwrap_or(0);
+
+    // 移动到隔离区
+    std::fs::rename(&p, &quarantine_path).map_err(|e| e.to_string())?;
+
+    // 记录到数据库（默认保留 30 天）
+    let expires_at = ts + 30 * 86400;
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.execute(
+            "INSERT INTO quarantine (original_path, quarantine_path, deleted_at, expires_at, file_hash, size)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                path,
+                quarantine_path.to_string_lossy().as_ref(),
+                ts,
+                expires_at,
+                file_hash,
+                file_size,
+            ],
+        ).map_err(|e| e.to_string())?;
+
+        // 审计日志
+        let _ = db.execute(
+            "INSERT INTO audit_log (ts, action, path, detail, result) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![ts, "quarantine", path, format!("已移入隔离区，30天后清除"), "success"],
+        );
+    }
+
+    Ok(OperationResult {
+        success: true,
+        processed: 1,
+        message: format!("文件已移入隔离区（30天后自动清除）"),
+    })
+}
+
+/// IPC: 从隔离区恢复文件
+#[tauri::command]
+pub async fn restore_quarantine(
+    record_id: i64,
+    state: State<'_, AppState>,
+) -> Result<OperationResult, String> {
+    // 读取记录
+    let (original_path, quarantine_path, file_hash): (String, String, String) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.query_row(
+            "SELECT original_path, quarantine_path, file_hash FROM quarantine WHERE id = ?1",
+            rusqlite::params![record_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get::<_, Option<String>>(2)?.unwrap_or_default())),
+        ).map_err(|e| format!("隔离记录不存在: {}", e))?
+    };
+
+    let qpath = std::path::Path::new(&quarantine_path);
+    if !qpath.exists() {
+        return Err("隔离文件不存在，可能已被清除".into());
+    }
+
+    // 校验完整性
+    let current_hash = crate::engine::hasher::blake3_file_sync(&quarantine_path).unwrap_or_default();
+    if !file_hash.is_empty() && current_hash != file_hash {
+        return Err("文件完整性校验失败，文件可能已损坏".into());
+    }
+
+    // 确保目标目录存在
+    let orig = std::path::Path::new(&original_path);
+    if let Some(parent) = orig.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+
+    // 恢复文件
+    std::fs::rename(qpath, orig).map_err(|e| e.to_string())?;
+
+    // 删除数据库记录
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let _ = db.execute("DELETE FROM quarantine WHERE id = ?1", rusqlite::params![record_id]);
+    }
+
+    Ok(OperationResult {
+        success: true,
+        processed: 1,
+        message: format!("文件已恢复至 {}", original_path),
+    })
 }

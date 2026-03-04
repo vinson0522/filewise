@@ -17,6 +17,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // 获取系统应用数据目录，如 C:\Users\<user>\AppData\Roaming\com.filewise.dev
             let data_dir = app.path().app_data_dir()
@@ -35,7 +36,9 @@ pub fn run() {
             move_files,
             scan_large_files,
             scan_duplicates,
+            pick_folder,
             quarantine_file,
+            restore_quarantine,
             // clean
             scan_clean_targets,
             execute_clean,
