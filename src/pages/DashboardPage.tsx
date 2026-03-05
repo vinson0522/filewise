@@ -109,11 +109,11 @@ export default function DashboardPage() {
     : <CloseCircleFilled style={{ color: '#ff4d4f' }} />;
 
   const quickActions = [
-    { icon: <AppstoreOutlined />, title: '智能整理', desc: '按类型自动分类归档', bg: '#e6f4ff', color: '#1677ff', page: 'organize' as const },
-    { icon: <ClearOutlined />,    title: '系统清理', desc: '清理临时/缓存文件', bg: '#f6ffed', color: '#52c41a', page: 'clean' as const },
-    { icon: <CopyOutlined />,     title: '查找重复',  desc: '扫描并去除重复',   bg: '#fff7e6', color: '#fa8c16', page: 'clean' as const },
-    { icon: <DeleteOutlined />,   title: '大文件扫描', desc: '发现空间占用大文件', bg: '#f9f0ff', color: '#722ed1', page: 'clean' as const },
-    { icon: <SearchOutlined />,   title: '智能搜索', desc: '全文检索已索引文件', bg: '#fff0f6', color: '#eb2f96', page: 'search' as const },
+    { icon: <AppstoreOutlined />, title: '智能整理', desc: '按类型自动分类归档', page: 'organize' as const },
+    { icon: <ClearOutlined />,    title: '系统清理', desc: '清理临时/缓存文件', page: 'clean' as const },
+    { icon: <CopyOutlined />,     title: '查找重复',  desc: '扫描并去除重复',   page: 'clean' as const },
+    { icon: <DeleteOutlined />,   title: '大文件扫描', desc: '发现空间占用大文件', page: 'clean' as const },
+    { icon: <SearchOutlined />,   title: '智能搜索', desc: '全文检索已索引文件', page: 'search' as const },
   ];
 
   const displayScore = scanScore ?? health?.score ?? null;
@@ -127,7 +127,7 @@ export default function DashboardPage() {
           {/* Score Circle */}
           <div className="score-ring-wrap">
             <svg viewBox="0 0 120 120" className="score-ring">
-              <circle cx="60" cy="60" r="52" fill="none" stroke="#f0f0f0" strokeWidth="8" />
+              <circle cx="60" cy="60" r="52" fill="none" stroke="var(--border)" strokeWidth="8" />
               {displayScore !== null && (
                 <circle cx="60" cy="60" r="52" fill="none"
                   stroke={scoreColor(displayScore)} strokeWidth="8" strokeLinecap="round"
@@ -161,9 +161,9 @@ export default function DashboardPage() {
         <div className="hero-right">
           {scanStep === 0 && !scanning ? (
             <div className="hero-empty">
-              <ThunderboltOutlined style={{ fontSize: 36, color: '#d9d9d9', marginBottom: 8 }} />
+              <ThunderboltOutlined style={{ fontSize: 28, color: 'var(--text-3)', marginBottom: 6 }} />
               <p>点击「一键体检」全面检测系统健康状态</p>
-              <p style={{ fontSize: 12, color: '#bfbfbf' }}>将自动检测磁盘空间、可清理项、文件索引和健康评分</p>
+              <p style={{ fontSize: 12, color: 'var(--text-3)' }}>将自动检测磁盘空间、可清理项、文件索引和健康评分</p>
             </div>
           ) : scanning ? (
             <div className="hero-steps">
@@ -200,8 +200,8 @@ export default function DashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }} className="mb-20">
         {quickActions.map(a => (
           <div className="quick-action" key={a.title} onClick={() => setCurrentPage(a.page)}
-            style={{ flexDirection: 'column', textAlign: 'center', padding: '20px 12px' }}>
-            <div className="quick-action-icon" style={{ background: a.bg, color: a.color, marginBottom: 8 }}>{a.icon}</div>
+            style={{ flexDirection: 'column', textAlign: 'center', padding: '16px 12px' }}>
+            <div className="quick-action-icon" style={{ color: 'var(--accent)', marginBottom: 6 }}>{a.icon}</div>
             <div className="quick-action-text" style={{ textAlign: 'center' }}>
               <h4>{a.title}</h4>
               <p>{a.desc}</p>
@@ -219,7 +219,7 @@ export default function DashboardPage() {
           </div>
           <div className="section-card-body">
             {disks.length === 0 ? (
-              <div style={{ color: '#bfbfbf', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>加载中...</div>
+              <div style={{ color: 'var(--text-3)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>加载中...</div>
             ) : disks.map(d => {
               const pct = Math.round(d.used_space / d.total_space * 100);
               const color = pct > 85 ? '#ff4d4f' : pct > 70 ? '#faad14' : '#1677ff';
@@ -228,12 +228,12 @@ export default function DashboardPage() {
               return (
                 <div className="disk-bar-wrap" key={d.mount_point}
                   style={{ cursor: 'pointer', padding: '6px 8px', borderRadius: 6, margin: '0 -8px',
-                    background: isSelected ? '#e6f4ff' : 'transparent',
-                    border: isSelected ? '1px solid #91caff' : '1px solid transparent',
-                    transition: 'all 0.15s' }}
+                    background: isSelected ? 'var(--accent-dim)' : 'transparent',
+                    border: isSelected ? '1px solid var(--accent)' : '1px solid transparent',
+                    transition: 'all 0.12s' }}
                   onClick={() => setSelectedDisk(isSelected ? '' : d.mount_point)}>
                   <div className="disk-bar-label">
-                    <span style={{ fontWeight: 500, color: isSelected ? '#1677ff' : undefined }}>{label}</span>
+                    <span style={{ fontWeight: 500, color: isSelected ? 'var(--accent)' : undefined }}>{label}</span>
                     <span>{formatSize(d.used_space)} / {formatSize(d.total_space)} ({pct}%)</span>
                   </div>
                   <div className="disk-bar"><div className="disk-bar-fill" style={{ width: `${pct}%`, background: color }} /></div>
@@ -250,7 +250,7 @@ export default function DashboardPage() {
           </div>
           <div className="section-card-body">
             {catStats.length === 0 ? (
-              <div style={{ color: '#bfbfbf', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>建立索引后显示</div>
+              <div style={{ color: 'var(--text-3)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>建立索引后显示</div>
             ) : (() => {
               const totalSize = catStats.reduce((s, c) => s + c.total_size, 0) || 1;
               const COLORS: Record<string, string> = {
@@ -285,15 +285,15 @@ export default function DashboardPage() {
         </div>
         <div className="section-card-body">
           {recentLogs.length === 0 ? (
-            <div style={{ color: '#bfbfbf', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>暂无操作记录</div>
+            <div style={{ color: 'var(--text-3)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>暂无操作记录</div>
           ) : recentLogs.slice(0, 8).map((r, i) => (
             <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0',
-              borderBottom: i < Math.min(recentLogs.length, 8) - 1 ? '1px solid #fafafa' : 'none', fontSize: 13 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: actionColor[r.action] ?? '#8c8c8c' }} />
-              <span style={{ color: '#595959', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              borderBottom: i < Math.min(recentLogs.length, 8) - 1 ? '1px solid var(--border-sub)' : 'none', fontSize: 13 }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0, background: actionColor[r.action] ?? 'var(--text-3)' }} />
+              <span style={{ color: 'var(--text-2)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {actionLabel[r.action] ?? r.action}: {r.path?.split(/[\\/]/).pop() ?? r.detail}
               </span>
-              <span style={{ color: '#bfbfbf', fontSize: 11, flexShrink: 0 }}>{formatDate(r.ts)}</span>
+              <span style={{ color: 'var(--text-3)', fontSize: 11, flexShrink: 0 }}>{formatDate(r.ts)}</span>
             </div>
           ))}
         </div>

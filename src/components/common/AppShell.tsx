@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Badge, Button, Tooltip, Tour } from 'antd';
+import { Badge, Tour } from 'antd';
 import type { TourProps } from 'antd';
 import {
   DashboardOutlined, AppstoreOutlined, ClearOutlined,
@@ -29,24 +29,20 @@ interface NavItem {
   key: PageKey;
   label: string;
   icon: React.ReactNode;
-  section: string;
 }
 
 const NAV_MAIN: NavItem[] = [
-  { key: 'dashboard', label: '概览',    icon: <DashboardOutlined />, section: '' },
-  { key: 'organize',  label: '智能整理', icon: <AppstoreOutlined />,  section: '' },
-  { key: 'clean',     label: '智能清理', icon: <ClearOutlined />,     section: '' },
-  { key: 'search',    label: '智能搜索', icon: <SearchOutlined />,    section: '' },
-  { key: 'chat',      label: 'AI 助手', icon: <MessageOutlined />,   section: '' },
-  { key: 'image',     label: '图片标签', icon: <PictureOutlined />,   section: '' },
+  { key: 'dashboard', label: '概览',    icon: <DashboardOutlined /> },
+  { key: 'organize',  label: '智能整理', icon: <AppstoreOutlined /> },
+  { key: 'clean',     label: '智能清理', icon: <ClearOutlined /> },
+  { key: 'search',    label: '智能搜索', icon: <SearchOutlined /> },
+  { key: 'chat',      label: 'AI 助手', icon: <MessageOutlined /> },
+  { key: 'image',     label: '图片标签', icon: <PictureOutlined /> },
 ];
 
-const NAV_MORE: NavItem[] = [
-  { key: 'report',    label: '操作报告', icon: <BarChartOutlined />,  section: '' },
-  { key: 'security',  label: '安全中心', icon: <SafetyCertificateOutlined />, section: '' },
-  { key: 'settings',  label: '系统设置', icon: <SettingOutlined />,   section: '' },
-  { key: 'help',      label: '帮助',    icon: <QuestionCircleOutlined />, section: '' },
-  { key: 'changelog', label: '版本',    icon: <BarChartOutlined />,  section: '' },
+const NAV_SECONDARY: NavItem[] = [
+  { key: 'report',    label: '操作报告', icon: <BarChartOutlined /> },
+  { key: 'security',  label: '安全中心', icon: <SafetyCertificateOutlined /> },
 ];
 
 const PAGE_MAP: Record<PageKey, React.ReactNode> = {
@@ -68,80 +64,38 @@ const TOUR_KEY = 'filewise_tour_done';
 export default function AppShell() {
   const { currentPage, setCurrentPage, requestTour, setRequestTour, setLockRequested, themeMode, toggleTheme } = useAppStore();
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [showMore, setShowMore] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const [hasPwd, setHasPwd] = useState(false);
 
   const refHero = useRef<HTMLDivElement>(null);
   const refNav = useRef<HTMLDivElement>(null);
-  const refMore = useRef<HTMLDivElement>(null);
-  const refHeader = useRef<HTMLDivElement>(null);
+  const refBottom = useRef<HTMLDivElement>(null);
   const refContent = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    checkUpdate()
-      .then(info => setUpdateInfo(info))
-      .catch(() => {});
+    checkUpdate().then(info => setUpdateInfo(info)).catch(() => {});
     hasPassword().then(setHasPwd).catch(() => {});
-    // Show tour on first visit
     if (!localStorage.getItem(TOUR_KEY)) {
       const timer = setTimeout(() => setTourOpen(true), 600);
       return () => clearTimeout(timer);
     }
   }, []);
 
-  // React to tour replay request from HelpPage
   useEffect(() => {
-    if (requestTour) {
-      setTourOpen(true);
-      setRequestTour(false);
-    }
+    if (requestTour) { setTourOpen(true); setRequestTour(false); }
   }, [requestTour, setRequestTour]);
 
   const tourSteps: TourProps['steps'] = [
-    {
-      title: '欢迎使用 FileWise！',
-      description: '让我带你快速了解主要功能，只需 30 秒。',
-      target: null,
-    },
-    {
-      title: '一键体检',
-      description: '点击这里全面检测系统健康状态，包括磁盘空间、可清理项、文件索引和健康评分。',
-      target: () => refHero.current!,
-      placement: 'bottom',
-    },
-    {
-      title: '核心功能导航',
-      description: '在这里切换主要功能：智能整理、智能清理、智能搜索和 AI 助手。',
-      target: () => refNav.current!,
-      placement: 'right',
-    },
-    {
-      title: '更多工具',
-      description: '展开查看操作报告、安全中心、系统设置等高级功能。',
-      target: () => refMore.current!,
-      placement: 'right',
-    },
-    {
-      title: '版本更新 & 帮助',
-      description: '查看版本更新提醒和帮助文档。红点表示有新版本可用。',
-      target: () => refHeader.current!,
-      placement: 'bottomRight',
-    },
-    {
-      title: '开始体验！',
-      description: '现在试试点击「一键体检」吧！如需再次查看引导，可在帮助中心找到。',
-      target: () => refContent.current!,
-      placement: 'left',
-    },
+    { title: '欢迎使用 FileWise！', description: '让我带你快速了解主要功能，只需 30 秒。', target: null },
+    { title: '一键体检', description: '点击这里全面检测系统健康状态。', target: () => refHero.current!, placement: 'bottom' },
+    { title: '核心功能', description: '在侧边栏切换主要功能。', target: () => refNav.current!, placement: 'right' },
+    { title: '设置与帮助', description: '底部可以切换主题、设置和帮助。', target: () => refBottom.current!, placement: 'right' },
+    { title: '开始使用', description: '试试点击「一键体检」吧！', target: () => refContent.current!, placement: 'left' },
   ];
 
-  function closeTour() {
-    setTourOpen(false);
-    localStorage.setItem(TOUR_KEY, '1');
-  }
+  function closeTour() { setTourOpen(false); localStorage.setItem(TOUR_KEY, '1'); }
 
-  const renderNavItem = (item: NavItem) => (
+  const navItem = (item: NavItem) => (
     <div key={item.key}
       className={`nav-item${currentPage === item.key ? ' active' : ''}`}
       onClick={() => setCurrentPage(item.key)}>
@@ -151,63 +105,57 @@ export default function AppShell() {
   );
 
   return (
-    <div className="app-layout">
-      {/* Header */}
-      <header className="app-header">
-        <div className="app-logo">
-          <FolderOpenOutlined style={{ fontSize: 20 }} />
-          <span>FileWise</span>
-        </div>
-        <div className="header-actions" ref={refHeader}>
-          <Tooltip title={updateInfo?.has_update ? `新版本 v${updateInfo.latest_version} 可用` : '版本更新'}>
-            <Badge dot={!!updateInfo?.has_update} offset={[-4, 4]}>
-              <Button type="text" size="small" icon={<BellOutlined />}
-                onClick={() => setCurrentPage('changelog')} />
+    <div className="shell">
+      {/* ── Sidebar ── */}
+      <aside className="sidebar">
+        {/* Workspace header */}
+        <div className="sidebar-head">
+          <div className="ws-logo"><FolderOpenOutlined /></div>
+          <span className="ws-name">FileWise</span>
+          {updateInfo?.has_update && (
+            <Badge dot offset={[-2, 2]}>
+              <button className="sidebar-icon-btn" onClick={() => setCurrentPage('changelog')}>
+                <BellOutlined />
+              </button>
             </Badge>
-          </Tooltip>
-          <Tooltip title="帮助">
-            <Button type="text" size="small" icon={<QuestionCircleOutlined />}
-              onClick={() => setCurrentPage('help')} />
-          </Tooltip>
-          <Tooltip title={themeMode === 'dark' ? '切换亮色模式' : '切换暗色模式'}>
-            <button className="theme-toggle" onClick={toggleTheme}>
-              {themeMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
-            </button>
-          </Tooltip>
-          {hasPwd && (<>
-            <div className="header-divider" />
-            <Tooltip title="锁定屏幕">
-              <Button type="text" size="small" icon={<LockOutlined />}
-                onClick={() => setLockRequested(true)} />
-            </Tooltip>
-          </>)}
+          )}
         </div>
-      </header>
 
-      <div className="app-body">
-        {/* Sidebar */}
-        <aside className="app-sider">
-          <div className="nav-sider-main" ref={refNav}>
-            {NAV_MAIN.map(renderNavItem)}
-          </div>
-          <div className="nav-sider-more" ref={refMore}>
-            <div className="nav-section" style={{ cursor: 'pointer', userSelect: 'none' }}
-              onClick={() => setShowMore(!showMore)}>
-              {showMore ? '收起 ▴' : '更多 ▾'}
-            </div>
-            {showMore && NAV_MORE.map(renderNavItem)}
-          </div>
-        </aside>
+        {/* Main nav */}
+        <div className="sidebar-nav" ref={refNav}>
+          <div className="nav-group-label">工作区</div>
+          {NAV_MAIN.map(navItem)}
 
-        {/* Content */}
-        <main className="app-content" ref={refContent}>
-          <div ref={refHero}>
-            {PAGE_MAP[currentPage]}
-          </div>
-        </main>
-      </div>
+          <div className="nav-group-label" style={{ marginTop: 16 }}>工具</div>
+          {NAV_SECONDARY.map(navItem)}
+        </div>
 
-      {/* Onboarding Tour */}
+        {/* Bottom controls */}
+        <div className="sidebar-foot" ref={refBottom}>
+          <button className="sidebar-icon-btn" onClick={toggleTheme} title={themeMode === 'dark' ? '亮色模式' : '暗色模式'}>
+            {themeMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+          </button>
+          <button className="sidebar-icon-btn" onClick={() => setCurrentPage('settings')} title="设置">
+            <SettingOutlined />
+          </button>
+          <button className="sidebar-icon-btn" onClick={() => setCurrentPage('help')} title="帮助">
+            <QuestionCircleOutlined />
+          </button>
+          {hasPwd && (
+            <button className="sidebar-icon-btn" onClick={() => setLockRequested(true)} title="锁定">
+              <LockOutlined />
+            </button>
+          )}
+        </div>
+      </aside>
+
+      {/* ── Content ── */}
+      <main className="content" ref={refContent}>
+        <div ref={refHero}>
+          {PAGE_MAP[currentPage]}
+        </div>
+      </main>
+
       <Tour open={tourOpen} onClose={closeTour} steps={tourSteps} />
     </div>
   );
