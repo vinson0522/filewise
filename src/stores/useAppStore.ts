@@ -22,6 +22,10 @@ interface AppState {
   // 新手引导
   requestTour: boolean;
   setRequestTour: (v: boolean) => void;
+
+  // 锁屏请求
+  lockRequested: boolean;
+  setLockRequested: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -47,4 +51,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   requestTour: false,
   setRequestTour: (v) => set({ requestTour: v }),
+
+  lockRequested: false,
+  setLockRequested: (v) => set({ lockRequested: v }),
 }));

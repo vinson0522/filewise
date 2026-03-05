@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppShell from './components/common/AppShell';
 import LockScreen from './components/common/LockScreen';
 import { hasPassword } from './services/file.service';
+import { useAppStore } from './stores/useAppStore';
 import './App.css';
 
 const queryClient = new QueryClient({
@@ -15,12 +16,20 @@ const queryClient = new QueryClient({
 
 function App() {
   const [locked, setLocked] = useState<boolean | null>(null);
+  const { lockRequested, setLockRequested } = useAppStore();
 
   useEffect(() => {
     hasPassword()
       .then(has => setLocked(has))
       .catch(() => setLocked(false));
   }, []);
+
+  useEffect(() => {
+    if (lockRequested) {
+      setLocked(true);
+      setLockRequested(false);
+    }
+  }, [lockRequested, setLockRequested]);
 
   return (
     <QueryClientProvider client={queryClient}>

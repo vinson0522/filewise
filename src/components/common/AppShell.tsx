@@ -5,10 +5,10 @@ import {
   DashboardOutlined, AppstoreOutlined, ClearOutlined,
   SearchOutlined, MessageOutlined, BarChartOutlined,
   SettingOutlined, FolderOpenOutlined, BellOutlined,
-  QuestionCircleOutlined, UserOutlined, SafetyCertificateOutlined,
+  QuestionCircleOutlined, LockOutlined, SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useAppStore } from '../../stores/useAppStore';
-import { checkUpdate } from '../../services/file.service';
+import { checkUpdate, hasPassword } from '../../services/file.service';
 import type { UpdateInfo } from '../../services/file.service';
 import type { PageKey } from '../../types';
 import DashboardPage  from '../../pages/DashboardPage';
@@ -62,10 +62,11 @@ const PAGE_MAP: Record<PageKey, React.ReactNode> = {
 const TOUR_KEY = 'filewise_tour_done';
 
 export default function AppShell() {
-  const { currentPage, setCurrentPage, requestTour, setRequestTour } = useAppStore();
+  const { currentPage, setCurrentPage, requestTour, setRequestTour, setLockRequested } = useAppStore();
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [showMore, setShowMore] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  const [hasPwd, setHasPwd] = useState(false);
 
   const refHero = useRef<HTMLDivElement>(null);
   const refNav = useRef<HTMLDivElement>(null);
@@ -77,6 +78,7 @@ export default function AppShell() {
     checkUpdate()
       .then(info => setUpdateInfo(info))
       .catch(() => {});
+    hasPassword().then(setHasPwd).catch(() => {});
     // Show tour on first visit
     if (!localStorage.getItem(TOUR_KEY)) {
       const timer = setTimeout(() => setTourOpen(true), 600);
@@ -163,11 +165,13 @@ export default function AppShell() {
             <Button type="text" size="small" icon={<QuestionCircleOutlined />}
               onClick={() => setCurrentPage('help')} />
           </Tooltip>
-          <div className="header-divider" />
-          <div className="header-user">
-            <div className="user-avatar"><UserOutlined /></div>
-            <span className="user-name">用户</span>
-          </div>
+          {hasPwd && (<>
+            <div className="header-divider" />
+            <Tooltip title="锁定屏幕">
+              <Button type="text" size="small" icon={<LockOutlined />}
+                onClick={() => setLockRequested(true)} />
+            </Tooltip>
+          </>)}
         </div>
       </header>
 
