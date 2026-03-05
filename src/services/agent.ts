@@ -86,7 +86,10 @@ export function classifyIntent(msg: string): IntentType {
 // 快速执行器（按意图直接执行，无需 AI）
 // ——————————————————————————————————————————————
 
-export async function detectAndExecute(msg: string): Promise<{ text: string; result: AgentActionResult } | null> {
+export type ProgressCallback = (stage: string) => void;
+const noop: ProgressCallback = () => {};
+
+export async function detectAndExecute(msg: string, onProgress: ProgressCallback = noop): Promise<{ text: string; result: AgentActionResult } | null> {
   const intent = classifyIntent(msg);
   if (intent === 'general_chat') return null;
 
@@ -101,6 +104,7 @@ export async function detectAndExecute(msg: string): Promise<{ text: string; res
         };
       }
       case 'disk_analysis': {
+        onProgress('正在读取磁盘信息...');
         const disks = await getDiskInfo();
         const lines = disks.map(d => {
           const pct = d.total_space > 0 ? Math.round((d.total_space - d.available_space) / d.total_space * 100) : 0;
@@ -109,6 +113,7 @@ export async function detectAndExecute(msg: string): Promise<{ text: string; res
         return { text: `💾 磁盘使用情况：\n\n${lines.join('\n')}`, result: { type: 'disk_info', label: '磁盘分析', data: disks } };
       }
       case 'clean': {
+        onProgress('正在扫描可清理项目...');
         const targets = await scanCleanTargets();
         const total = targets.reduce((s, t) => s + t.size, 0);
         return {
@@ -117,8 +122,10 @@ export async function detectAndExecute(msg: string): Promise<{ text: string; res
         };
       }
       case 'large_files': {
+        onProgress('正在解析目标路径...');
         let path = await extractPath(msg);
         if (!path) path = await getHomePath();
+        onProgress(`正在扫描大文件: ${path} ...`);
         const files = await scanLargeFiles(path, 50);
         const top = files.slice(0, 10);
         return {
@@ -129,9 +136,12 @@ export async function detectAndExecute(msg: string): Promise<{ text: string; res
         };
       }
       case 'duplicates': {
+        onProgress('正在解析目标路径...');
         let path = await extractPath(msg);
         if (!path) path = await getHomePath();
+        onProgress(`正在扫描重复文件: ${path}（文件哈希计算中，可能需要 1-3 分钟）...`);
         const groups = await scanDuplicates(path);
+        onProgress('正在整理扫描结果...');
         const totalWaste = groups.reduce((s, g) => s + g.total_wasted, 0);
         return {
           text: groups.length === 0
@@ -141,9 +151,12 @@ export async function detectAndExecute(msg: string): Promise<{ text: string; res
         };
       }
       case 'organize': {
+        onProgress('正在解析目标路径...');
         let path = await extractPath(msg);
         if (!path) path = `${await getHomePath()}\\Desktop`;
+        onProgress(`正在扫描并建立索引: ${path} ...`);
         const stats = await scanAndIndex(path);
+        onProgress('正在统计文件分类...');
         const cats = await getCategoryStats();
         return {
           text: `📂 已扫描 **${path}**，共 ${stats.total_files} 个文件 (${formatSize(stats.total_size)})。\n\n${cats.slice(0, 6).map(c => `- ${c.category}: ${c.file_count} 个`).join('\n')}\n\n前往整理页面选择归档方式。`,
@@ -161,8 +174,10 @@ export async function detectAndExecute(msg: string): Promise<{ text: string; res
         };
       }
       case 'index': {
+        onProgress('正在解析目标路径...');
         let path = await extractPath(msg);
         if (!path) path = await getHomePath();
+        onProgress(`正在建立文件索引: ${path}（遍历文件中）...`);
         const stats = await scanAndIndex(path);
         return {
           text: `📋 索引完成！已索引 **${stats.total_files}** 个文件，总大小 **${formatSize(stats.total_size)}**。`,
@@ -298,7 +313,7 @@ export function stripActionBlocks(text: string): string {
     .trim();
 }
 
-export async function executeAIAction(action: ParsedAction): Promise<{
+export async function executeAIAction(action: ParsedAction, onProgress: ProgressCallback = noop): Promise<{
   observation: string;
   result: AgentActionResult;
 }> {
@@ -310,6 +325,7 @@ export async function executeAIAction(action: ParsedAction): Promise<{
       return { observation: `已跳转到「${page}」页面。`, result: { type: 'navigate', label: page, data: null, navigateTo: page as AgentActionResult['navigateTo'] } };
     }
     case 'health_check': {
+      onProgress('正在执行系统健康检查...');
       const { getHealthScore } = await import('./file.service');
       const h = await getHealthScore();
       return { observation: `健康评分: ${h.score}/100。可释放: ${formatSize(h.freeable_bytes)}。问题: ${h.issues.join('; ') || '无'}`, result: { type: 'navigate', label: '健康检查', data: h, navigateTo: 'dashboard' } };
@@ -329,6 +345,7 @@ export async function executeAIAction(action: ParsedAction): Promise<{
       const { scanDirectoryShallow } = await import('./file.service');
       const path = (p.path as string) || '';
       if (!path) return { observation: '错误：未指定目录路径。', result: { type: 'navigate', label: '扫描', data: null } };
+      onProgress(`正在扫描目录: ${path} ...`);
       const files = await scanDirectoryShallow(path);
       return { observation: `目录 ${path}：${files.length} 项（${files.filter(f => f.is_dir).length} 文件夹, ${files.filter(f => !f.is_dir).length} 文件）`, result: { type: 'index_stats', label: '目录扫描', data: files } };
     }
@@ -369,17 +386,21 @@ export async function executeAIAction(action: ParsedAction): Promise<{
     case 'scan_large_files': {
       const path = (p.path as string) || await getHomePath();
       const minSize = (p.min_size_mb as number) || 100;
+      onProgress(`正在扫描大文件: ${path}（>${minSize}MB）...`);
       const files = await scanLargeFiles(path, minSize);
       return { observation: files.length === 0 ? `未发现>${minSize}MB大文件。` : `发现 ${files.length} 个大文件：\n${files.slice(0, 10).map((f, i) => `${i + 1}. ${f.name} (${formatSize(f.size)})`).join('\n')}`, result: { type: 'large_files', label: '大文件', data: files, navigateTo: 'clean' } };
     }
     case 'scan_duplicates': {
       const path = (p.path as string) || await getHomePath();
+      onProgress(`正在扫描重复文件: ${path}（哈希计算中，请耐心等待）...`);
       const groups = await scanDuplicates(path);
+      onProgress('正在统计重复文件结果...');
       const tw = groups.reduce((s, g) => s + g.total_wasted, 0);
       return { observation: groups.length === 0 ? '未发现重复文件。' : `发现 ${groups.length} 组重复文件，可释放 ${formatSize(tw)}`, result: { type: 'duplicates', label: '重复文件', data: groups, navigateTo: 'clean' } };
     }
     // ── 清理 ──
     case 'scan_clean': {
+      onProgress('正在扫描可清理项目...');
       const targets = await scanCleanTargets();
       const total = targets.reduce((s, t) => s + t.size, 0);
       return { observation: `发现 ${targets.length} 项可清理，共 ${formatSize(total)}：\n${targets.map(t => `${t.name}: ${formatSize(t.size)}`).join('\n')}`, result: { type: 'clean_scan', label: '清理扫描', data: { targets, total }, navigateTo: 'clean' } };
@@ -388,6 +409,7 @@ export async function executeAIAction(action: ParsedAction): Promise<{
       const { executeClean } = await import('./file.service');
       const paths = (p.paths as string[]) || [];
       if (paths.length === 0) return { observation: '错误：未指定清理路径。', result: { type: 'clean_scan', label: '清理', data: null } };
+      onProgress(`正在清理 ${paths.length} 个项目...`);
       const res = await executeClean(paths);
       return { observation: `清理完成！释放 ${formatSize(res.freed_bytes)}，删除 ${res.deleted_count} 个文件。`, result: { type: 'clean_scan', label: '清理执行', data: res } };
     }
@@ -437,6 +459,7 @@ export async function executeAIAction(action: ParsedAction): Promise<{
     case 'scan_sensitive': {
       const { scanSensitiveFiles } = await import('./file.service');
       const path = (p.path as string) || await getHomePath();
+      onProgress(`正在扫描敏感信息: ${path} ...`);
       const results = await scanSensitiveFiles(path);
       return { observation: results.length === 0 ? '未发现敏感信息。' : `发现 ${results.length} 个敏感文件。`, result: { type: 'security', label: '敏感扫描', data: results, navigateTo: 'security' } };
     }
@@ -444,6 +467,7 @@ export async function executeAIAction(action: ParsedAction): Promise<{
       const { checkIntegrity } = await import('./file.service');
       const path = (p.path as string) || '';
       if (!path) return { observation: '错误：未指定路径。', result: { type: 'security', label: '完整性', data: null } };
+      onProgress(`正在校验文件完整性: ${path} ...`);
       const result = await checkIntegrity(path);
       return { observation: `完整性检查完成：${JSON.stringify(result)}`, result: { type: 'security', label: '完整性校验', data: result } };
     }
@@ -474,6 +498,7 @@ export async function executeAIAction(action: ParsedAction): Promise<{
       const path = (p.path as string) || '';
       const model = (p.model as string) || undefined;
       if (!path) return { observation: '错误：未指定图片目录。', result: { type: 'image', label: '标注', data: null } };
+      onProgress(`正在用 AI 标注图片: ${path}（逐张分析中，可能较慢）...`);
       const progress = await tagImages(path, model);
       return { observation: `图片标注完成：共 ${progress.total} 张，已完成 ${progress.completed} 张。`, result: { type: 'image', label: '图片标注', data: progress, navigateTo: 'image' } };
     }
@@ -488,6 +513,7 @@ export async function executeAIAction(action: ParsedAction): Promise<{
       const imagePath = (p.path as string) || '';
       const prompt = (p.prompt as string) || '请描述这张图片的内容，并建议合适的标签和归档目录。';
       if (!imagePath) return { observation: '错误：未指定图片路径。', result: { type: 'image', label: '图片分析', data: null } };
+      onProgress('AI 正在分析图片内容...');
       const desc = await aiVisionChat(imagePath, prompt);
       return { observation: `图片分析结果：\n${desc}`, result: { type: 'image', label: '图片分析', data: { path: imagePath, description: desc } } };
     }

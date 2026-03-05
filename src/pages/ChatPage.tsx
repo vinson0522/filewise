@@ -235,7 +235,7 @@ export default function ChatPage() {
       const intent = classifyIntent(msg);
       if (intent !== 'general_chat') {
         setAgentStatus(`识别意图: ${intent}，正在执行...`);
-        const agentResult = await detectAndExecute(msg);
+        const agentResult = await detectAndExecute(msg, setAgentStatus);
         if (agentResult) {
           appendChatMessage({ role: 'ai', text: agentResult.text, timestamp: Date.now(), actionResult: agentResult.result });
           persistMessage('assistant', agentResult.text);
@@ -318,7 +318,7 @@ export default function ChatPage() {
       setAgentStatus(`执行步骤 ${i + 1}/${steps.length}: ${steps[i].description}`);
 
       try {
-        const { observation, result } = await executeAIAction({ tool: steps[i].tool, params: steps[i].params });
+        const { observation, result } = await executeAIAction({ tool: steps[i].tool, params: steps[i].params }, setAgentStatus);
         steps[i].status = 'done';
         steps[i].result = observation.slice(0, 100);
         results.push(`${steps[i].description}: ${observation}`);
@@ -414,7 +414,7 @@ export default function ChatPage() {
       for (const action of actions) {
         setAgentStatus(`正在执行: ${action.tool}...`);
         try {
-          const { observation, result } = await executeAIAction(action);
+          const { observation, result } = await executeAIAction(action, setAgentStatus);
           observations.push(`[${action.tool}] ${observation}`);
           lastActionResult = result;
 
