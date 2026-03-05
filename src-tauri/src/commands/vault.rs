@@ -385,3 +385,185 @@ pub async fn vault_remove(id: i64, state: State<'_, AppState>) -> Result<(), Str
     db.execute("DELETE FROM vault WHERE id = ?1", [id]).ok();
     Ok(())
 }
+
+// ——————————————————————————————————————————————
+// 便携导出/导入 (.fwvault 格式)
+// 格式: MAGIC(8) + VERSION(4) + META_LEN(4) + META_JSON(N) + ENC_DATA(...)
+// ——————————————————————————————————————————————
+
+const FWVAULT_MAGIC: &[u8; 8] = b"FWVAULT\0";
+const FWVAULT_VERSION: u32 = 1;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct FwVaultMeta {
+    original_name: String,
+    salt_hex: String,
+    wrapped_dek_hex: String,
+    file_hash: String,
+    size: i64,
+}
+
+/// IPC: 导出保险箱文件为便携 .fwvault 文件（可发送给他人）
+#[tauri::command]
+pub async fn vault_export(
+    id: i64,
+    export_path: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    ensure_vault_table(&state)?;
+
+    let (original_name, vault_file, salt_hex, wrapped_dek_hex, file_hash, size): (String, String, String, String, String, i64) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.query_row(
+            "SELECT original_name, vault_file, salt, wrapped_dek, file_hash, size FROM vault WHERE id = ?1",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+        ).map_err(|_| "保险箱记录不存在".to_string())?
+    };
+
+    // 读取加密文件数据
+    let enc_data = std::fs::read(&vault_file)
+        .map_err(|e| format!("读取加密文件失败: {}", e))?;
+
+    // 构建元数据
+    let meta = FwVaultMeta {
+        original_name: original_name.clone(),
+        salt_hex,
+        wrapped_dek_hex,
+        file_hash,
+        size,
+    };
+    let meta_json = serde_json::to_vec(&meta)
+        .map_err(|e| format!("序列化元数据失败: {}", e))?;
+
+    // 确定导出路径
+    let out_path = if export_path.ends_with(".fwvault") {
+        export_path.clone()
+    } else {
+        let dir = Path::new(&export_path);
+        if dir.is_dir() {
+            dir.join(format!("{}.fwvault", original_name)).to_string_lossy().to_string()
+        } else {
+            format!("{}.fwvault", export_path)
+        }
+    };
+
+    // 写入 .fwvault 文件
+    let mut writer = std::fs::File::create(&out_path)
+        .map_err(|e| format!("创建导出文件失败: {}", e))?;
+
+    writer.write_all(FWVAULT_MAGIC).map_err(|e| e.to_string())?;
+    writer.write_all(&FWVAULT_VERSION.to_le_bytes()).map_err(|e| e.to_string())?;
+    writer.write_all(&(meta_json.len() as u32).to_le_bytes()).map_err(|e| e.to_string())?;
+    writer.write_all(&meta_json).map_err(|e| e.to_string())?;
+    writer.write_all(&enc_data).map_err(|e| e.to_string())?;
+
+    Ok(out_path)
+}
+
+/// IPC: 导入 .fwvault 文件并解密（接收他人发送的加密文件）
+#[tauri::command]
+pub async fn vault_import(
+    fwvault_path: String,
+    password: String,
+    target_dir: Option<String>,
+) -> Result<String, String> {
+    let mut reader = std::fs::File::open(&fwvault_path)
+        .map_err(|e| format!("打开文件失败: {}", e))?;
+
+    // 1. 校验 Magic
+    let mut magic = [0u8; 8];
+    reader.read_exact(&mut magic)
+        .map_err(|_| "文件格式错误：不是有效的 .fwvault 文件".to_string())?;
+    if &magic != FWVAULT_MAGIC {
+        return Err("文件格式错误：不是有效的 .fwvault 文件".into());
+    }
+
+    // 2. 读取版本
+    let mut ver_buf = [0u8; 4];
+    reader.read_exact(&mut ver_buf).map_err(|_| "文件损坏：无法读取版本".to_string())?;
+    let version = u32::from_le_bytes(ver_buf);
+    if version != FWVAULT_VERSION {
+        return Err(format!("不支持的 fwvault 版本: {}", version));
+    }
+
+    // 3. 读取元数据
+    let mut meta_len_buf = [0u8; 4];
+    reader.read_exact(&mut meta_len_buf).map_err(|_| "文件损坏：无法读取元数据长度".to_string())?;
+    let meta_len = u32::from_le_bytes(meta_len_buf) as usize;
+    if meta_len > 1024 * 1024 {
+        return Err("元数据过大，文件可能损坏".into());
+    }
+
+    let mut meta_buf = vec![0u8; meta_len];
+    reader.read_exact(&mut meta_buf).map_err(|_| "文件损坏：无法读取元数据".to_string())?;
+    let meta: FwVaultMeta = serde_json::from_slice(&meta_buf)
+        .map_err(|e| format!("元数据解析失败: {}", e))?;
+
+    // 4. 读取加密数据
+    let mut enc_data = Vec::new();
+    reader.read_to_end(&mut enc_data)
+        .map_err(|e| format!("读取加密数据失败: {}", e))?;
+
+    // 5. 写入临时 .enc 文件
+    let temp_dir = std::env::temp_dir().join("filewise_import");
+    std::fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
+    let temp_enc = temp_dir.join(format!("{}.enc", uuid::Uuid::new_v4()));
+    std::fs::write(&temp_enc, &enc_data)
+        .map_err(|e| format!("写入临时文件失败: {}", e))?;
+
+    // 6. 从密码+盐派生 KEK
+    let salt_bytes = hex::decode(&meta.salt_hex)
+        .map_err(|_| "盐值格式错误".to_string())?;
+    if salt_bytes.len() != 16 {
+        std::fs::remove_file(&temp_enc).ok();
+        return Err("盐值长度错误".into());
+    }
+    let mut salt = [0u8; 16];
+    salt.copy_from_slice(&salt_bytes);
+    let kek = derive_kek(&password, &salt).map_err(|e| {
+        std::fs::remove_file(&temp_enc).ok();
+        e
+    })?;
+
+    // 7. 用 KEK 解密 DEK
+    let wrapped_dek_bytes = hex::decode(&meta.wrapped_dek_hex)
+        .map_err(|_| {
+            std::fs::remove_file(&temp_enc).ok();
+            "加密密钥格式错误".to_string()
+        })?;
+    let dek = unwrap_dek(&kek, &wrapped_dek_bytes).map_err(|e| {
+        std::fs::remove_file(&temp_enc).ok();
+        e
+    })?;
+
+    // 8. 解密文件
+    let dest_dir = target_dir.unwrap_or_else(|| {
+        dirs::download_dir()
+            .unwrap_or_else(|| std::env::temp_dir())
+            .to_string_lossy().to_string()
+    });
+    std::fs::create_dir_all(&dest_dir).ok();
+    let dest_file = Path::new(&dest_dir).join(&meta.original_name);
+    let dest_str = dest_file.to_string_lossy().to_string();
+
+    decrypt_file_streaming(&dek, &temp_enc, &dest_file).map_err(|e| {
+        std::fs::remove_file(&temp_enc).ok();
+        e
+    })?;
+
+    // 9. 完整性校验
+    if !meta.file_hash.is_empty() {
+        let hash = crate::engine::hasher::blake3_file_sync(&dest_str).unwrap_or_default();
+        if hash != meta.file_hash {
+            std::fs::remove_file(&dest_file).ok();
+            std::fs::remove_file(&temp_enc).ok();
+            return Err("完整性校验失败：文件可能被篡改".into());
+        }
+    }
+
+    // 10. 清理临时文件
+    std::fs::remove_file(&temp_enc).ok();
+
+    Ok(format!("已成功解密并保存到: {}", dest_str))
+}

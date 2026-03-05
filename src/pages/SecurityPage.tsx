@@ -4,9 +4,10 @@ import {
   LockOutlined, ScanOutlined, AuditOutlined, SafetyCertificateOutlined,
   FolderOpenOutlined, DeleteOutlined, PlusOutlined, ExportOutlined,
   UnlockOutlined, SecurityScanOutlined, EyeOutlined, FileProtectOutlined,
+  ImportOutlined, DownloadOutlined,
 } from '@ant-design/icons';
 import {
-  vaultEncrypt, vaultDecrypt, vaultList, vaultRemove,
+  vaultEncrypt, vaultDecrypt, vaultList, vaultRemove, vaultExport, vaultImport,
   scanSensitiveFiles, exportAuditCsv, exportAuditJson,
   createIntegrityBaseline, checkIntegrity,
   addProtectedDir, removeProtectedDir, listProtectedDirs,
@@ -31,6 +32,32 @@ function VaultTab() {
   useEffect(() => { load(); }, []);
 
   const [encryptPath, setEncryptPath] = useState('');
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importPath, setImportPath] = useState('');
+  const [importPwd, setImportPwd] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
+
+  const handleExportEntry = async (entry: VaultEntry) => {
+    const folder = await pickFolder();
+    if (!folder) return;
+    try {
+      const out = await vaultExport(entry.id, folder);
+      message.success(`已导出到: ${out}`);
+    } catch (e: any) { message.error(e.message || '导出失败'); }
+  };
+
+  const handleImport = async () => {
+    if (!importPath || !importPwd.trim()) { message.warning('请选择文件并输入密码'); return; }
+    setImportLoading(true);
+    try {
+      const res = await vaultImport(importPath, importPwd);
+      message.success(res);
+      setImportModalOpen(false);
+      setImportPath('');
+      setImportPwd('');
+    } catch (e: any) { message.error(e.message || '导入解密失败'); }
+    finally { setImportLoading(false); }
+  };
 
   const handlePickAndEncrypt = async () => {
     const filePath = await pickFile();
@@ -59,7 +86,7 @@ function VaultTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <Button size="small" icon={<FolderOpenOutlined />} onClick={async () => {
           const f = await pickFile(); if (f) setEncryptPath(f);
         }}>选择文件</Button>
@@ -73,6 +100,10 @@ function VaultTab() {
             try { const res = await vaultEncrypt(f, pwd); message.success(res); setPwd(''); setEncryptPath(''); load(); }
             catch (e: any) { message.error(e.message || '加密失败'); }
           }}>加密入箱</Button>
+        <div style={{ flex: 1 }} />
+        <Button size="small" icon={<ImportOutlined />} onClick={() => setImportModalOpen(true)}>
+          导入 .fwvault 文件
+        </Button>
       </div>
 
       <Table size="small" loading={loading} dataSource={entries} rowKey="id" pagination={false}
@@ -83,10 +114,12 @@ function VaultTab() {
             render: (t: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{t}</span> },
           { title: '大小', dataIndex: 'size', key: 'size', width: 90, render: (s: number) => formatSize(s) },
           { title: '加密时间', dataIndex: 'encrypted_at', key: 'time', width: 150 },
-          { title: '操作', key: 'actions', width: 140, render: (_: any, r: VaultEntry) => (
+          { title: '操作', key: 'actions', width: 200, render: (_: any, r: VaultEntry) => (
             <div style={{ display: 'flex', gap: 4 }}>
               <Button type="link" size="small" icon={<UnlockOutlined />}
                 onClick={() => setDecryptId(r.id)}>解密</Button>
+              <Button type="link" size="small" icon={<DownloadOutlined />}
+                onClick={() => handleExportEntry(r)}>导出</Button>
               <Popconfirm title="永久删除此加密文件？" onConfirm={async () => {
                 await vaultRemove(r.id); message.success('已删除'); load();
               }}><Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button></Popconfirm>
@@ -99,6 +132,24 @@ function VaultTab() {
         onOk={handleDecrypt} okText="解密恢复">
         <Input.Password prefix={<LockOutlined />} placeholder="输入加密时设置的密码"
           value={decryptPwd} onChange={e => setDecryptPwd(e.target.value)} onPressEnter={handleDecrypt} />
+      </Modal>
+
+      <Modal title="导入加密文件" open={importModalOpen}
+        onCancel={() => { setImportModalOpen(false); setImportPath(''); setImportPwd(''); }}
+        onOk={handleImport} okText="解密导入" confirmLoading={importLoading}>
+        <p style={{ color: '#8c8c8c', fontSize: 13, marginBottom: 12 }}>
+          选择他人发来的 .fwvault 加密文件，输入密码即可解密还原。解密后的文件默认保存到下载目录。
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <Button icon={<FolderOpenOutlined />} onClick={async () => {
+            const f = await pickFile(); if (f) setImportPath(f);
+          }}>选择 .fwvault 文件</Button>
+          {importPath && <Tag style={{ fontFamily: 'monospace', margin: 0, maxWidth: 300 }} title={importPath}>
+            {importPath.replace(/^.*[\\/]/, '')}
+          </Tag>}
+        </div>
+        <Input.Password prefix={<LockOutlined />} placeholder="输入发送方设置的密码"
+          value={importPwd} onChange={e => setImportPwd(e.target.value)} onPressEnter={handleImport} />
       </Modal>
     </div>
   );

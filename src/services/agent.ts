@@ -200,7 +200,7 @@ export async function detectAndExecute(msg: string, onProgress: ProgressCallback
         return {
           text: items.length === 0
             ? '🔐 保险箱为空。前往安全中心可以加密文件。'
-            : `🔐 保险箱共 ${items.length} 个加密文件。前往安全中心管理。`,
+            : `🔐 保险箱共 **${items.length}** 个加密文件：\n\n${items.map((v, i) => `${i + 1}. **${v.original_name}** — ${formatSize(v.size)} — 加密于 ${v.encrypted_at}\n   原路径: \`${v.original_path}\`  (ID: ${v.id})`).join('\n')}\n\n💡 可用 \`vault_decrypt\` 解密指定文件，或前往安全中心管理。`,
           result: { type: 'vault', label: '保险箱', data: items, navigateTo: 'security' },
         };
       }
@@ -454,7 +454,7 @@ export async function executeAIAction(action: ParsedAction, onProgress: Progress
     case 'vault_list': {
       const { vaultList } = await import('./file.service');
       const items = await vaultList();
-      return { observation: items.length === 0 ? '保险箱为空。' : `保险箱 ${items.length} 个文件。`, result: { type: 'vault', label: '保险箱', data: items, navigateTo: 'security' } };
+      return { observation: items.length === 0 ? '保险箱为空。' : `保险箱 ${items.length} 个加密文件：\n${items.map((v, i) => `${i + 1}. ${v.original_name} (${formatSize(v.size)}) 加密于${v.encrypted_at} ID=${v.id}`).join('\n')}`, result: { type: 'vault', label: '保险箱', data: items, navigateTo: 'security' } };
     }
     case 'scan_sensitive': {
       const { scanSensitiveFiles } = await import('./file.service');

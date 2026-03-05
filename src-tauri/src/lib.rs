@@ -129,6 +129,8 @@ pub fn run() {
             vault_decrypt,
             vault_list,
             vault_remove,
+            vault_export,
+            vault_import,
             check_password_strength,
             // image tagging
             tag_images,

@@ -460,6 +460,14 @@ export async function checkPasswordStrength(password: string): Promise<PasswordS
   return safeInvoke<PasswordStrength>('check_password_strength', { password });
 }
 
+export async function vaultExport(id: number, exportPath: string): Promise<string> {
+  return safeInvoke<string>('vault_export', { id, exportPath });
+}
+
+export async function vaultImport(fwvaultPath: string, password: string, targetDir?: string): Promise<string> {
+  return safeInvoke<string>('vault_import', { fwvaultPath, password, targetDir });
+}
+
 // ===================== 文件打开 =====================
 
 /** 用资源管理器打开文件所在目录 */
