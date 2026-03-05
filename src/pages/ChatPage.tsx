@@ -4,16 +4,18 @@ import { SendOutlined, RobotOutlined, UserOutlined, ReloadOutlined, ArrowRightOu
 import { useAppStore } from '../stores/useAppStore';
 import { aiChat, checkOllama } from '../services/file.service';
 import type { ChatMessage } from '../services/file.service';
-import { detectAndExecute } from '../services/agent';
+import { detectAndExecute, parseAIActions, stripActionBlocks, executeAIAction } from '../services/agent';
 import type { PageKey } from '../types';
 import Markdown from 'react-markdown';
 
+const MAX_REACT_TURNS = 5;
+
 const QUICK_CMDS = [
-  '整理桌面文件',
+  '帮我做一次系统健康检查',
   '清理临时文件和缓存',
   '扫描重复文件',
   '分析磁盘空间占用',
-  '扫描大文件',
+  '整理桌面然后扫描大文件',
 ];
 
 export default function ChatPage() {
@@ -21,6 +23,7 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [ollamaOnline, setOllamaOnline] = useState<boolean | null>(null);
+  const [agentStatus, setAgentStatus] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,15 +39,15 @@ export default function ChatPage() {
     if (!msg || sending) return;
     setInputText('');
     setSending(true);
+    setAgentStatus('');
 
     appendChatMessage({ role: 'user', text: msg, timestamp: Date.now() });
 
     try {
-      // 1️⃣ Agent: 检测意图并执行操作
+      // Step 1: Try fast regex-based agent first
       const agentResult = await detectAndExecute(msg);
 
       if (agentResult) {
-        // 展示操作结果
         appendChatMessage({
           role: 'ai',
           text: agentResult.text,
@@ -52,28 +55,18 @@ export default function ChatPage() {
           actionResult: agentResult.result,
         });
 
-        // 2️⃣ 用结果让 AI 给出智能建议（可选，如果 Ollama 在线）
+        // Get AI follow-up suggestions if online
         if (ollamaOnline) {
           try {
-            const contextMsg = `用户说："${msg}"
-
-FileWise 已自动执行了「${agentResult.result.label}」操作，结果如下：
-${agentResult.text}
-
-请基于以上结果，给用户 1-3 条简短的后续建议，引导他们使用 FileWise 的功能。不要重复结果数据，只给建议。`;
+            const contextMsg = `用户说："${msg}"\n\nFileWise 已自动执行了「${agentResult.result.label}」操作，结果如下：\n${agentResult.text}\n\n请基于以上结果，给用户 1-3 条简短的后续建议。不要重复结果数据。`;
             const history: ChatMessage[] = [{ role: 'user', content: contextMsg }];
             const reply = await aiChat(history);
             appendChatMessage({ role: 'ai', text: `💡 ${reply}`, timestamp: Date.now() });
-          } catch { /* AI 离线时不影响 Agent 结果 */ }
+          } catch { /* AI offline, skip suggestions */ }
         }
       } else {
-        // 无匹配意图，走普通 AI 对话
-        const history: ChatMessage[] = chatMessages
-          .concat([{ role: 'user', text: msg, timestamp: Date.now() }])
-          .map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text }));
-
-        const reply = await aiChat(history);
-        appendChatMessage({ role: 'ai', text: reply, timestamp: Date.now() });
+        // Step 2: AI chat with ReAct loop
+        await reactLoop(msg);
       }
     } catch (e) {
       appendChatMessage({
@@ -83,6 +76,70 @@ ${agentResult.text}
       });
     } finally {
       setSending(false);
+      setAgentStatus('');
+    }
+  }
+
+  /** ReAct loop: AI responds → parse actions → execute → feed observation → repeat */
+  async function reactLoop(userMsg: string) {
+    // Build history from existing chat messages
+    const history: ChatMessage[] = chatMessages
+      .slice(-10)
+      .map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text }));
+    history.push({ role: 'user', content: userMsg });
+
+    let lastActionResult = undefined;
+
+    for (let turn = 0; turn < MAX_REACT_TURNS; turn++) {
+      setAgentStatus(turn === 0 ? 'AI 思考中...' : `Agent 第 ${turn + 1} 轮思考...`);
+
+      const reply = await aiChat(history);
+      const actions = parseAIActions(reply);
+      const displayText = stripActionBlocks(reply);
+
+      if (actions.length === 0) {
+        // No actions — final answer, show it and stop
+        appendChatMessage({ role: 'ai', text: displayText || reply, timestamp: Date.now(), actionResult: lastActionResult });
+        break;
+      }
+
+      // Show AI's reasoning text (before action execution)
+      if (displayText) {
+        appendChatMessage({ role: 'ai', text: displayText, timestamp: Date.now() });
+      }
+
+      // Execute all actions and collect observations
+      const observations: string[] = [];
+      for (const action of actions) {
+        setAgentStatus(`正在执行: ${action.tool}...`);
+        try {
+          const { observation, result } = await executeAIAction(action);
+          observations.push(`[${action.tool}] ${observation}`);
+          lastActionResult = result;
+
+          // Handle navigation
+          if (action.tool === 'navigate' && result.navigateTo) {
+            setCurrentPage(result.navigateTo as PageKey);
+          }
+
+          // Show action result as a message
+          appendChatMessage({
+            role: 'ai',
+            text: `🔧 **${action.tool}** 执行完成：\n\n${observation}`,
+            timestamp: Date.now(),
+            actionResult: result,
+          });
+        } catch (e) {
+          observations.push(`[${action.tool}] 执行失败: ${String(e)}`);
+        }
+      }
+
+      // Feed observations back to AI for next turn
+      history.push({ role: 'assistant', content: reply });
+      history.push({
+        role: 'user',
+        content: `[OBSERVATION] 工具执行结果：\n${observations.join('\n')}\n\n请根据以上结果继续回答或执行下一步操作。如果任务已完成，直接给出总结，不需要再调用工具。`,
+      });
     }
   }
 
@@ -163,7 +220,7 @@ ${agentResult.text}
                 <RobotOutlined />
               </div>
               <div style={{ padding: '14px 16px', background: '#fafafa', borderRadius: 8 }}>
-                <Spin size="small" /> <span style={{ marginLeft: 8, fontSize: 13, color: '#8c8c8c' }}>AI 思考中...</span>
+                <Spin size="small" /> <span style={{ marginLeft: 8, fontSize: 13, color: '#8c8c8c' }}>{agentStatus || 'AI 思考中...'}</span>
               </div>
             </div>
           )}

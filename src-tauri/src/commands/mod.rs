@@ -1,6 +1,7 @@
 pub mod ai;
 pub mod clean;
 pub mod file_ops;
+pub mod image;
 pub mod index;
 pub mod security;
 pub mod settings;

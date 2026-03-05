@@ -6,6 +6,7 @@ import {
   SearchOutlined, MessageOutlined, BarChartOutlined,
   SettingOutlined, FolderOpenOutlined, BellOutlined,
   QuestionCircleOutlined, LockOutlined, SafetyCertificateOutlined,
+  PictureOutlined,
 } from '@ant-design/icons';
 import { useAppStore } from '../../stores/useAppStore';
 import { checkUpdate, hasPassword } from '../../services/file.service';
@@ -21,6 +22,7 @@ import SettingsPage   from '../../pages/SettingsPage';
 import HelpPage       from '../../pages/HelpPage';
 import ChangelogPage  from '../../pages/ChangelogPage';
 import SecurityPage  from '../../pages/SecurityPage';
+import ImagePage     from '../../pages/ImagePage';
 import '../../styles/app-shell.css';
 
 interface NavItem {
@@ -36,6 +38,7 @@ const NAV_MAIN: NavItem[] = [
   { key: 'clean',     label: '智能清理', icon: <ClearOutlined />,     section: '' },
   { key: 'search',    label: '智能搜索', icon: <SearchOutlined />,    section: '' },
   { key: 'chat',      label: 'AI 助手', icon: <MessageOutlined />,   section: '' },
+  { key: 'image',     label: '图片标签', icon: <PictureOutlined />,   section: '' },
 ];
 
 const NAV_MORE: NavItem[] = [
@@ -57,6 +60,7 @@ const PAGE_MAP: Record<PageKey, React.ReactNode> = {
   help:      <HelpPage />,
   changelog: <ChangelogPage />,
   security:  <SecurityPage />,
+  image:     <ImagePage />,
 };
 
 const TOUR_KEY = 'filewise_tour_done';

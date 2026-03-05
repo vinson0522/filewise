@@ -6,6 +6,7 @@ pub mod state;
 use commands::ai::*;
 use commands::clean::*;
 use commands::file_ops::*;
+use commands::image::*;
 use commands::index::*;
 use commands::security::*;
 use commands::settings::*;
@@ -126,6 +127,12 @@ pub fn run() {
             vault_decrypt,
             vault_list,
             vault_remove,
+            check_password_strength,
+            // image tagging
+            tag_images,
+            search_images_by_tag,
+            list_tagged_images,
+            remove_image_tag,
             // security (S2-S5)
             scan_sensitive_files,
             export_audit_csv,

@@ -96,7 +96,13 @@ pub async fn move_files(
 ) -> Result<OperationResult, String> {
     let guard = PathGuard::new();
 
-    // 1. 预验证所有路径
+    // 1. 预验证所有路径（含保护目录检查）
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        for op in &operations {
+            crate::commands::security::check_path_protected(&db, &op.source)?;
+        }
+    }
     for op in &operations {
         let src = std::path::PathBuf::from(&op.source);
         let dst = std::path::PathBuf::from(&op.target);
@@ -406,6 +412,12 @@ pub async fn quarantine_file(
     }
     if !p.exists() {
         return Err(format!("文件不存在: {}", path));
+    }
+
+    // 保护目录检查
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        crate::commands::security::check_path_protected(&db, &path)?;
     }
 
     // 隔离区目录：优先使用设置中的自定义路径，否则使用文件所在盘符

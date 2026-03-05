@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+use tauri::State;
+use crate::state::AppState;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CleanTarget {
@@ -218,7 +220,16 @@ pub async fn scan_clean_targets() -> Result<Vec<CleanTarget>, String> {
 
 /// IPC: 执行清理（删除指定路径下的文件，跳过只读/锁定文件）
 #[tauri::command]
-pub async fn execute_clean(paths: Vec<String>) -> Result<CleanResult, String> {
+pub async fn execute_clean(paths: Vec<String>, state: State<'_, AppState>) -> Result<CleanResult, String> {
+    // 保护目录检查
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        for p in &paths {
+            if p == "$RECYCLE.BIN" || p == "__empty_dirs__" { continue; }
+            crate::commands::security::check_path_protected(&db, p)?;
+        }
+    }
+
     let mut freed_bytes = 0u64;
     let mut deleted_count = 0u64;
     let mut failed: Vec<String> = Vec::new();

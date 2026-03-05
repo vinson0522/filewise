@@ -410,6 +410,51 @@ export async function isPathProtected(path: string): Promise<boolean> {
   return safeInvoke<boolean>('is_path_protected', { path });
 }
 
+// ===================== 图片智能标签 =====================
+
+export interface ImageTag {
+  id: number;
+  path: string;
+  file_name: string;
+  tags: string;
+  description: string;
+  tagged_at: string;
+  size: number;
+}
+
+export interface TagProgress {
+  total: number;
+  completed: number;
+  results: ImageTag[];
+  errors: string[];
+}
+
+export interface PasswordStrength {
+  score: number;
+  label: string;
+  tips: string[];
+}
+
+export async function tagImages(path: string, model?: string): Promise<TagProgress> {
+  return safeInvoke<TagProgress>('tag_images', { path, model });
+}
+
+export async function searchImagesByTag(keyword: string): Promise<ImageTag[]> {
+  return safeInvoke<ImageTag[]>('search_images_by_tag', { keyword });
+}
+
+export async function listTaggedImages(): Promise<ImageTag[]> {
+  return safeInvoke<ImageTag[]>('list_tagged_images');
+}
+
+export async function removeImageTag(id: number): Promise<void> {
+  return safeInvoke<void>('remove_image_tag', { id });
+}
+
+export async function checkPasswordStrength(password: string): Promise<PasswordStrength> {
+  return safeInvoke<PasswordStrength>('check_password_strength', { password });
+}
+
 // ===================== 文件打开 =====================
 
 /** 用资源管理器打开文件所在目录 */

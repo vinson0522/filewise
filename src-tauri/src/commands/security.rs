@@ -6,6 +6,37 @@ use regex::Regex;
 use std::io::Read;
 
 // ——————————————————————————————————————————————
+// Public helper: check protection synchronously (used by file_ops, clean, etc.)
+// ——————————————————————————————————————————————
+
+/// Check if a path falls under any protected directory. Callable from other modules.
+pub fn check_path_protected(db: &rusqlite::Connection, path: &str) -> Result<(), String> {
+    // Ensure table exists
+    db.execute_batch(
+        "CREATE TABLE IF NOT EXISTS protected_dirs (
+            path TEXT PRIMARY KEY,
+            added_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );"
+    ).ok();
+
+    let mut stmt = db.prepare("SELECT path FROM protected_dirs")
+        .map_err(|e| e.to_string())?;
+    let dirs: Vec<String> = stmt.query_map([], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let normalized = path.replace('/', "\\").to_lowercase();
+    for dir in &dirs {
+        let norm_dir = dir.replace('/', "\\").to_lowercase();
+        if normalized.starts_with(&norm_dir) {
+            return Err(format!("操作被拒绝：路径 {} 位于受保护目录 {} 下", path, dir));
+        }
+    }
+    Ok(())
+}
+
+// ——————————————————————————————————————————————
 // S2: 敏感文件扫描
 // ——————————————————————————————————————————————
 

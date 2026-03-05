@@ -61,6 +61,12 @@ keyring          = "3"
 rand             = "0.8"
 hex              = "0.4"
 
+# Argon2id (password key derivation)
+argon2           = "0.5"
+
+# Base64 (image encoding for vision models)
+base64           = "0.22"
+
 # Regex (sensitive data detection)
 regex            = "1"
 

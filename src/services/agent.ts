@@ -182,3 +182,158 @@ export async function detectAndExecute(msg: string): Promise<{ text: string; res
   }
   return null;
 }
+
+// ——————————————————————————————————————————————
+// AI-driven action parsing & execution (ReAct)
+// ——————————————————————————————————————————————
+
+export interface ParsedAction {
+  tool: string;
+  params: Record<string, unknown>;
+}
+
+/** Parse ```action blocks from AI response text */
+export function parseAIActions(text: string): ParsedAction[] {
+  const results: ParsedAction[] = [];
+  // Match ```action ... ``` blocks
+  const blockRegex = /```action\s*\n?([\s\S]*?)```/g;
+  let m: RegExpExecArray | null;
+  while ((m = blockRegex.exec(text)) !== null) {
+    try {
+      const parsed = JSON.parse(m[1].trim());
+      if (parsed.tool) results.push(parsed as ParsedAction);
+    } catch { /* ignore malformed JSON */ }
+  }
+  // Also try inline {"tool": ...} patterns if no blocks found
+  if (results.length === 0) {
+    const inlineRegex = /\{[^{}]*"tool"\s*:\s*"[^"]+?"[^{}]*\}/g;
+    while ((m = inlineRegex.exec(text)) !== null) {
+      try {
+        const parsed = JSON.parse(m[0]);
+        if (parsed.tool) results.push(parsed as ParsedAction);
+      } catch { /* ignore */ }
+    }
+  }
+  return results;
+}
+
+/** Strip action blocks from AI text for clean display */
+export function stripActionBlocks(text: string): string {
+  return text
+    .replace(/```action\s*\n?[\s\S]*?```/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** Execute a single AI-parsed action, returns observation text for ReAct */
+export async function executeAIAction(action: ParsedAction): Promise<{
+  observation: string;
+  result: AgentActionResult;
+}> {
+  const p = action.params || {};
+  switch (action.tool) {
+    case 'navigate': {
+      const page = (p.page as string) || 'dashboard';
+      return {
+        observation: `已跳转到「${page}」页面。`,
+        result: { type: 'navigate', label: page, data: null, navigateTo: page as AgentActionResult['navigateTo'] },
+      };
+    }
+    case 'health_check': {
+      const { getHealthScore } = await import('./file.service');
+      const health = await getHealthScore();
+      return {
+        observation: `健康评分: ${health.score}/100。可释放空间: ${formatSize(health.freeable_bytes)}。问题: ${health.issues.join('; ')}`,
+        result: { type: 'navigate', label: '健康检查', data: health, navigateTo: 'dashboard' },
+      };
+    }
+    case 'scan_clean': {
+      const targets = await scanCleanTargets();
+      const total = targets.reduce((s, t) => s + t.size, 0);
+      const lines = targets.map(t => `${t.name}: ${formatSize(t.size)} (${t.file_count}项, level=${t.level})`);
+      return {
+        observation: `扫描完成，发现 ${targets.length} 个可清理项，共可释放 ${formatSize(total)}：\n${lines.join('\n')}`,
+        result: { type: 'clean_scan', label: '清理扫描', data: { targets, total }, navigateTo: 'clean' },
+      };
+    }
+    case 'execute_clean': {
+      const { executeClean } = await import('./file.service');
+      const paths = (p.paths as string[]) || [];
+      if (paths.length === 0) return { observation: '错误：未指定清理路径。请先执行 scan_clean 获取路径列表。', result: { type: 'clean_scan', label: '清理', data: null } };
+      const res = await executeClean(paths);
+      return {
+        observation: `清理完成！已释放 ${formatSize(res.freed_bytes)}，删除 ${res.deleted_count} 个文件。${res.failed.length > 0 ? `失败 ${res.failed.length} 个。` : ''}`,
+        result: { type: 'clean_scan', label: '清理执行', data: res },
+      };
+    }
+    case 'scan_directory': {
+      const { scanDirectoryShallow } = await import('./file.service');
+      const path = (p.path as string) || '';
+      if (!path) return { observation: '错误：未指定目录路径。', result: { type: 'navigate', label: '扫描', data: null } };
+      const files = await scanDirectoryShallow(path);
+      return {
+        observation: `目录 ${path} 包含 ${files.length} 个项目（${files.filter(f => f.is_dir).length} 个文件夹, ${files.filter(f => !f.is_dir).length} 个文件）。`,
+        result: { type: 'index_stats', label: '目录扫描', data: files },
+      };
+    }
+    case 'search_files': {
+      const keyword = (p.keyword as string) || '';
+      if (!keyword) return { observation: '错误：未指定搜索关键词。', result: { type: 'search', label: '搜索', data: [] } };
+      const results = await searchFiles(keyword, 10);
+      if (results.length === 0) return { observation: `未找到匹配「${keyword}」的文件。可能需要先建立索引。`, result: { type: 'search', label: '搜索', data: [], navigateTo: 'search' } };
+      const lines = results.slice(0, 8).map((r, i) => `${i + 1}. ${r.name} (${formatSize(r.size)}) — ${r.path}`);
+      return {
+        observation: `找到 ${results.length} 个匹配「${keyword}」的文件：\n${lines.join('\n')}`,
+        result: { type: 'search', label: '搜索结果', data: results, navigateTo: 'search' },
+      };
+    }
+    case 'scan_large_files': {
+      const path = (p.path as string) || await getHomePath();
+      const minSize = (p.min_size_mb as number) || 100;
+      const files = await scanLargeFiles(path, minSize);
+      const top = files.slice(0, 10);
+      const lines = top.map((f, i) => `${i + 1}. ${f.name} (${formatSize(f.size)})`);
+      return {
+        observation: files.length === 0
+          ? `在 ${path} 中未发现超过 ${minSize}MB 的大文件。`
+          : `发现 ${files.length} 个大文件（>${minSize}MB）：\n${lines.join('\n')}`,
+        result: { type: 'large_files', label: '大文件扫描', data: files, navigateTo: 'clean' },
+      };
+    }
+    case 'scan_duplicates': {
+      const path = (p.path as string) || await getHomePath();
+      const groups = await scanDuplicates(path);
+      const totalWaste = groups.reduce((s, g) => s + g.total_wasted, 0);
+      return {
+        observation: groups.length === 0
+          ? `在 ${path} 中未发现重复文件。`
+          : `发现 ${groups.length} 组重复文件，可释放 ${formatSize(totalWaste)}。`,
+        result: { type: 'duplicates', label: '重复文件', data: groups, navigateTo: 'clean' },
+      };
+    }
+    case 'get_disk_info': {
+      const disks = await getDiskInfo();
+      const lines = disks.map(d => {
+        const pct = d.total_space > 0 ? Math.round((d.total_space - d.available_space) / d.total_space * 100) : 0;
+        return `${d.mount_point} 已用${pct}% 可用${formatSize(d.available_space)}`;
+      });
+      return {
+        observation: `磁盘信息：\n${lines.join('\n')}`,
+        result: { type: 'disk_info', label: '磁盘信息', data: disks },
+      };
+    }
+    case 'get_index_stats': {
+      const { getIndexStats } = await import('./file.service');
+      const stats = await getIndexStats();
+      return {
+        observation: `索引统计：${stats.total_files} 个文件，总大小 ${formatSize(stats.total_size)}。`,
+        result: { type: 'index_stats', label: '索引统计', data: stats },
+      };
+    }
+    default:
+      return {
+        observation: `未知工具：${action.tool}`,
+        result: { type: 'navigate', label: '未知', data: null },
+      };
+  }
+}
