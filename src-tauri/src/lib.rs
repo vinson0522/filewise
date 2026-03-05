@@ -106,6 +106,7 @@ pub fn run() {
             // settings
             get_settings,
             save_settings,
+            check_update,
             // audit log
             list_audit_log,
             get_health_score,

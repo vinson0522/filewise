@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Badge, Button, Tooltip } from 'antd';
 import {
   DashboardOutlined, AppstoreOutlined, ClearOutlined,
@@ -6,6 +7,8 @@ import {
   QuestionCircleOutlined, UserOutlined,
 } from '@ant-design/icons';
 import { useAppStore } from '../../stores/useAppStore';
+import { checkUpdate } from '../../services/file.service';
+import type { UpdateInfo } from '../../services/file.service';
 import type { PageKey } from '../../types';
 import DashboardPage  from '../../pages/DashboardPage';
 import OrganizePage   from '../../pages/OrganizePage';
@@ -51,7 +54,14 @@ const PAGE_MAP: Record<PageKey, React.ReactNode> = {
 
 export default function AppShell() {
   const { currentPage, setCurrentPage } = useAppStore();
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   let lastSection = '';
+
+  useEffect(() => {
+    checkUpdate()
+      .then(info => setUpdateInfo(info))
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="app-layout">
@@ -62,8 +72,8 @@ export default function AppShell() {
           <span>FileWise</span>
         </div>
         <div className="header-actions">
-          <Tooltip title="版本更新">
-            <Badge count={0} size="small">
+          <Tooltip title={updateInfo?.has_update ? `新版本 v${updateInfo.latest_version} 可用` : '版本更新'}>
+            <Badge dot={!!updateInfo?.has_update} offset={[-4, 4]}>
               <Button type="text" size="small" icon={<BellOutlined />}
                 onClick={() => setCurrentPage('changelog')} />
             </Badge>

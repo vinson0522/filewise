@@ -290,6 +290,21 @@ export async function aiClassifyFiles(fileNames: string[]): Promise<ClassifySugg
   return safeInvoke<ClassifySuggestion[]>('ai_classify_files', { fileNames });
 }
 
+// ===================== 版本更新 =====================
+
+export interface UpdateInfo {
+  has_update: boolean;
+  current_version: string;
+  latest_version: string;
+  release_notes: string;
+  download_url: string;
+  published_at: string;
+}
+
+export async function checkUpdate(): Promise<UpdateInfo> {
+  return safeInvoke<UpdateInfo>('check_update');
+}
+
 // ===================== 文件打开 =====================
 
 /** 用资源管理器打开文件所在目录 */

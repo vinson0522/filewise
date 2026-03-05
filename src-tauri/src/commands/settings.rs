@@ -2,6 +2,96 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use crate::state::AppState;
 
+// ——————————————————————————————————————————————
+// 版本更新检查（GitHub Release API）
+// ——————————————————————————————————————————————
+
+/// 当前应用版本（与 Cargo.toml / tauri.conf.json 保持一致）
+const CURRENT_VERSION: &str = "1.4.0";
+
+/// GitHub 仓库地址，修改为你的实际仓库
+const GITHUB_REPO: &str = "your-username/filewise";
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateInfo {
+    pub has_update: bool,
+    pub current_version: String,
+    pub latest_version: String,
+    pub release_notes: String,
+    pub download_url: String,
+    pub published_at: String,
+}
+
+#[derive(Deserialize)]
+struct GitHubRelease {
+    tag_name: String,
+    body: Option<String>,
+    html_url: String,
+    published_at: Option<String>,
+}
+
+/// IPC: 检查 GitHub 上是否有新版本
+#[tauri::command]
+pub async fn check_update() -> Result<UpdateInfo, String> {
+    let url = format!("https://api.github.com/repos/{}/releases/latest", GITHUB_REPO);
+
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .no_proxy()
+        .user_agent("FileWise-Update-Checker")
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("检查更新失败: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Ok(UpdateInfo {
+            has_update: false,
+            current_version: CURRENT_VERSION.to_string(),
+            latest_version: CURRENT_VERSION.to_string(),
+            release_notes: String::new(),
+            download_url: String::new(),
+            published_at: String::new(),
+        });
+    }
+
+    let release: GitHubRelease = resp.json().await
+        .map_err(|e| format!("解析更新信息失败: {}", e))?;
+
+    let latest = release.tag_name.trim_start_matches('v').to_string();
+    let has_update = version_gt(&latest, CURRENT_VERSION);
+
+    Ok(UpdateInfo {
+        has_update,
+        current_version: CURRENT_VERSION.to_string(),
+        latest_version: latest,
+        release_notes: release.body.unwrap_or_default(),
+        download_url: release.html_url,
+        published_at: release.published_at.unwrap_or_default(),
+    })
+}
+
+/// 简单版本号比较: "1.5.0" > "1.4.0"
+fn version_gt(a: &str, b: &str) -> bool {
+    let parse = |s: &str| -> Vec<u32> {
+        s.split('.').filter_map(|p| p.parse().ok()).collect()
+    };
+    let va = parse(a);
+    let vb = parse(b);
+    for i in 0..va.len().max(vb.len()) {
+        let x = va.get(i).copied().unwrap_or(0);
+        let y = vb.get(i).copied().unwrap_or(0);
+        if x > y { return true; }
+        if x < y { return false; }
+    }
+    false
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuditEntry {
     pub id: i64,
