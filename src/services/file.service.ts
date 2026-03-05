@@ -451,6 +451,10 @@ export async function removeImageTag(id: number): Promise<void> {
   return safeInvoke<void>('remove_image_tag', { id });
 }
 
+export async function readImageBase64(path: string): Promise<string> {
+  return safeInvoke<string>('read_image_base64', { path });
+}
+
 export async function checkPasswordStrength(password: string): Promise<PasswordStrength> {
   return safeInvoke<PasswordStrength>('check_password_strength', { password });
 }

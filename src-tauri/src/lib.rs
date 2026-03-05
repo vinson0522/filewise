@@ -133,6 +133,7 @@ pub fn run() {
             search_images_by_tag,
             list_tagged_images,
             remove_image_tag,
+            read_image_base64,
             // security (S2-S5)
             scan_sensitive_files,
             export_audit_csv,

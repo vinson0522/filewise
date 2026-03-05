@@ -301,6 +301,31 @@ pub async fn list_tagged_images(
     Ok(entries)
 }
 
+/// IPC: 读取图片并返回 base64 data URL（用于前端预览）
+#[tauri::command]
+pub async fn read_image_base64(path: String) -> Result<String, String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err("文件不存在".into());
+    }
+    let bytes = tokio::fs::read(&path).await.map_err(|e| e.to_string())?;
+    let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "bmp" => "image/bmp",
+        "svg" => "image/svg+xml",
+        "ico" => "image/x-icon",
+        "tiff" | "tif" => "image/tiff",
+        _ => "image/png",
+    };
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{};base64,{}", mime, b64))
+}
+
 /// IPC: 删除图片标签记录
 #[tauri::command]
 pub async fn remove_image_tag(

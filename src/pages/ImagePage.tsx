@@ -1,10 +1,28 @@
 import { useState, useEffect } from 'react';
 import { Button, Card, Tag, Input, Empty, Spin, message, Table, Tooltip, Select, Image } from 'antd';
 import { PictureOutlined, SearchOutlined, FolderOpenOutlined, TagsOutlined, DeleteOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
-import { convertFileSrc } from '@tauri-apps/api/core';
-import { pickFolder, tagImages, searchImagesByTag, listTaggedImages, removeImageTag, checkOllama, listOllamaModels } from '../services/file.service';
+import { pickFolder, tagImages, searchImagesByTag, listTaggedImages, removeImageTag, checkOllama, listOllamaModels, readImageBase64 } from '../services/file.service';
 import type { ImageTag, TagProgress } from '../services/file.service';
 import { formatSize } from '../utils/path.util';
+
+/* 懒加载缩略图组件 */
+function ImageThumb({ path }: { path: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    readImageBase64(path).then(url => { if (!cancelled) setSrc(url); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [path]);
+  if (!src) return <div style={{ width: 48, height: 48, borderRadius: 6, background: '#f0f0f4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><PictureOutlined style={{ color: '#bfbfbf' }} /></div>;
+  return (
+    <Image
+      src={src}
+      width={48} height={48}
+      style={{ objectFit: 'cover', borderRadius: 6 }}
+      preview={{ mask: <EyeOutlined style={{ fontSize: 14 }} /> }}
+    />
+  );
+}
 
 export default function ImagePage() {
   const [images, setImages] = useState<ImageTag[]>([]);
@@ -108,18 +126,7 @@ export default function ImagePage() {
       title: '预览',
       key: 'preview',
       width: 72,
-      render: (_: unknown, record: ImageTag) => (
-        <Image
-          src={convertFileSrc(record.path)}
-          width={48}
-          height={48}
-          style={{ objectFit: 'cover', borderRadius: 6 }}
-          fallback="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDQ4IDQ4Ij48cmVjdCB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIGZpbGw9IiNmMGYwZjQiLz48dGV4dCB4PSIyNCIgeT0iMjgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNiZmJmYmYiIGZvbnQtc2l6ZT0iMTIiPj88L3RleHQ+PC9zdmc+"
-          preview={{
-            mask: <EyeOutlined style={{ fontSize: 14 }} />,
-          }}
-        />
-      ),
+      render: (_: unknown, record: ImageTag) => <ImageThumb path={record.path} />,
     },
     {
       title: '文件名',
