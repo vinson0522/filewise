@@ -129,36 +129,36 @@ export default function DashboardPage() {
       {/* ========== Page Header ========== */}
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1>\u4eea\u8868\u76d8</h1>
-          <p>\u6b22\u8fce\u56de\u6765\uff0c\u8fd9\u662f\u60a8\u7684\u6587\u4ef6\u7cfb\u7edf\u6982\u89c8\u3002</p>
+          <h1>仪表盘</h1>
+          <p>欢迎回来，这是您的文件系统概览。</p>
         </div>
       </div>
 
       {/* ========== KPI Stat Cards ========== */}
       <div className="grid-4 mb-24">
         <div className="stat-card">
-          <p className="stat-label">\u5065\u5eb7\u8bc4\u5206</p>
-          <p className="stat-value">{displayScore !== null ? displayScore : '--'}<span className="stat-suffix">\u5206</span></p>
+          <p className="stat-label">健康评分</p>
+          <p className="stat-value">{displayScore !== null ? displayScore : '--'}<span className="stat-suffix">分</span></p>
           <p className="stat-extra" style={{ color: displayScore !== null && displayScore >= 80 ? '#16a34a' : displayScore !== null && displayScore >= 60 ? '#d97706' : 'var(--text-3)' }}>
-            {displayScore !== null ? (displayScore >= 80 ? '\u72b6\u6001\u826f\u597d' : displayScore >= 60 ? '\u5efa\u8bae\u4f18\u5316' : '\u9700\u8981\u5173\u6ce8') : '\u672a\u68c0\u6d4b'}
+            {displayScore !== null ? (displayScore >= 80 ? '状态良好' : displayScore >= 60 ? '建议优化' : '需要关注') : '未检测'}
           </p>
         </div>
         <div className="stat-card">
-          <p className="stat-label">\u603b\u5bb9\u91cf</p>
+          <p className="stat-label">总容量</p>
           <p className="stat-value">{totalCapacity > 0 ? formatSize(totalCapacity) : '--'}</p>
           <div className="stat-bar"><div className="stat-bar-fill" style={{ width: `${usedPct}%`, background: 'var(--accent)' }} /></div>
         </div>
         <div className="stat-card">
-          <p className="stat-label">\u5df2\u4f7f\u7528</p>
+          <p className="stat-label">已使用</p>
           <p className="stat-value">{totalUsed > 0 ? formatSize(totalUsed) : '--'}</p>
           <p className="stat-extra" style={{ color: usedPct > 85 ? '#dc2626' : usedPct > 70 ? '#d97706' : '#16a34a' }}>
-            {usedPct > 0 ? `${usedPct}% \u5df2\u4f7f\u7528` : ''}
+            {usedPct > 0 ? `${usedPct}% 已使用` : ''}
           </p>
         </div>
         <div className="stat-card">
-          <p className="stat-label">\u6587\u4ef6\u603b\u6570</p>
+          <p className="stat-label">文件总数</p>
           <p className="stat-value">{totalFiles > 0 ? totalFiles.toLocaleString() : '--'}</p>
-          <p className="stat-extra">{totalFiles > 0 ? '\u5df2\u7d22\u5f15' : '\u5c1a\u672a\u5efa\u7acb\u7d22\u5f15'}</p>
+          <p className="stat-extra">{totalFiles > 0 ? '已索引' : '尚未建立索引'}</p>
         </div>
       </div>
       {/* ========== Hero: Health Check ========== */}

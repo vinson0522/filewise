@@ -6,7 +6,7 @@ import {
   SearchOutlined, MessageOutlined, BarChartOutlined,
   SettingOutlined, FolderOpenOutlined, BellOutlined,
   QuestionCircleOutlined, LockOutlined, SafetyCertificateOutlined,
-  PictureOutlined, SunOutlined, MoonOutlined,
+  PictureOutlined, SunOutlined, MoonOutlined, ToolOutlined,
 } from '@ant-design/icons';
 import { useAppStore } from '../../stores/useAppStore';
 import { checkUpdate, hasPassword } from '../../services/file.service';
@@ -25,27 +25,47 @@ import SecurityPage  from '../../pages/SecurityPage';
 import ImagePage     from '../../pages/ImagePage';
 import '../../styles/app-shell.css';
 
-interface NavItem {
-  key: PageKey;
+interface NavItem { key: PageKey; label: string; icon: React.ReactNode; }
+
+interface Section {
+  key: string;
   label: string;
   icon: React.ReactNode;
+  pages: NavItem[];
 }
 
-const NAV_MAIN: NavItem[] = [
-  { key: 'dashboard', label: '仪表盘',  icon: <DashboardOutlined /> },
-  { key: 'organize',  label: '智能整理', icon: <AppstoreOutlined /> },
-  { key: 'clean',     label: '智能清理', icon: <ClearOutlined /> },
-  { key: 'search',    label: '智能搜索', icon: <SearchOutlined /> },
-  { key: 'chat',      label: 'AI 助手', icon: <MessageOutlined /> },
-  { key: 'image',     label: '图片标签', icon: <PictureOutlined /> },
+const SECTIONS: Section[] = [
+  {
+    key: 'overview', label: '概览', icon: <DashboardOutlined />,
+    pages: [{ key: 'dashboard', label: '仪表盘', icon: <DashboardOutlined /> }],
+  },
+  {
+    key: 'files', label: '文件管理', icon: <AppstoreOutlined />,
+    pages: [
+      { key: 'organize', label: '智能整理', icon: <AppstoreOutlined /> },
+      { key: 'search',   label: '智能搜索', icon: <SearchOutlined /> },
+      { key: 'image',    label: '图片标签', icon: <PictureOutlined /> },
+    ],
+  },
+  {
+    key: 'tools', label: '系统工具', icon: <ToolOutlined />,
+    pages: [{ key: 'clean', label: '智能清理', icon: <ClearOutlined /> }],
+  },
+  {
+    key: 'ai', label: 'AI 助手', icon: <MessageOutlined />,
+    pages: [{ key: 'chat', label: 'AI 对话', icon: <MessageOutlined /> }],
+  },
+  {
+    key: 'data', label: '数据管理', icon: <BarChartOutlined />,
+    pages: [
+      { key: 'report',   label: '操作报告', icon: <BarChartOutlined /> },
+      { key: 'security', label: '安全中心', icon: <SafetyCertificateOutlined /> },
+    ],
+  },
 ];
 
-const NAV_SECONDARY: NavItem[] = [
-  { key: 'report',    label: '操作报告', icon: <BarChartOutlined /> },
-  { key: 'security',  label: '安全中心', icon: <SafetyCertificateOutlined /> },
-];
-
-const ALL_NAV = [...NAV_MAIN, ...NAV_SECONDARY];
+const PAGE_TO_SECTION: Record<string, string> = {};
+SECTIONS.forEach(s => s.pages.forEach(p => { PAGE_TO_SECTION[p.key] = s.key; }));
 
 const PAGE_MAP: Record<PageKey, React.ReactNode> = {
   dashboard: <DashboardPage />,
@@ -97,16 +117,27 @@ export default function AppShell() {
 
   function closeTour() { setTourOpen(false); localStorage.setItem(TOUR_KEY, '1'); }
 
+  /* Determine active section from current page */
+  const activeSection = PAGE_TO_SECTION[currentPage] ?? 'overview';
+  const currentSectionData = SECTIONS.find(s => s.key === activeSection);
+
+  function handleSectionClick(section: Section) {
+    /* If already in this section, do nothing. Otherwise navigate to first page. */
+    if (activeSection !== section.key) {
+      setCurrentPage(section.pages[0].key);
+    }
+  }
+
   return (
     <div className="shell">
       {/* ── Column 1: Activity Bar (48px icon rail) ── */}
       <aside className="activity-bar">
-        {ALL_NAV.map(item => (
-          <div key={item.key}
-            className={`rail-icon${currentPage === item.key ? ' active' : ''}`}
-            onClick={() => setCurrentPage(item.key)}
-            title={item.label}>
-            {item.icon}
+        {SECTIONS.map(section => (
+          <div key={section.key}
+            className={`rail-icon${activeSection === section.key ? ' active' : ''}`}
+            onClick={() => handleSectionClick(section)}
+            title={section.label}>
+            {section.icon}
           </div>
         ))}
         <div className="rail-spacer" />
@@ -139,17 +170,8 @@ export default function AppShell() {
         </div>
 
         <div className="sidebar-nav" ref={refNav}>
-          <p className="nav-group-label">主菜单</p>
-          {NAV_MAIN.map(item => (
-            <div key={item.key}
-              className={`nav-item${currentPage === item.key ? ' active' : ''}`}
-              onClick={() => setCurrentPage(item.key)}>
-              {item.icon}
-              <span>{item.label}</span>
-            </div>
-          ))}
-          <p className="nav-group-label" style={{ marginTop: 16 }}>工具</p>
-          {NAV_SECONDARY.map(item => (
+          <p className="nav-group-label">{currentSectionData?.label ?? '导航'}</p>
+          {(currentSectionData?.pages ?? []).map((item: NavItem) => (
             <div key={item.key}
               className={`nav-item${currentPage === item.key ? ' active' : ''}`}
               onClick={() => setCurrentPage(item.key)}>
