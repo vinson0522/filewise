@@ -111,16 +111,10 @@ export default function OrganizePage() {
         <div className="section-card-body">
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
             <span style={{ fontSize: 13, color: '#595959', flexShrink: 0 }}>扫描目录：</span>
-            <input
-              style={{ flex: 1, border: '1px solid #d9d9d9', borderRadius: 6, padding: '7px 12px', fontSize: 13, outline: 'none' }}
-              placeholder='输入目录路径，如 C:\Users\Administrator\Desktop'
-              value={scanPath}
-              onChange={e => setScanPath(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleScan()}
-            />
+            {scanPath && <Tag style={{ fontFamily: 'monospace', margin: 0 }}>{scanPath}</Tag>}
             <Button icon={<FolderOpenOutlined />}
               onClick={async () => { const p = await pickFolder(); if (p) setScanPath(p); }}>
-              浏览
+              {scanPath ? '更换目录' : '选择目录'}
             </Button>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -130,15 +124,10 @@ export default function OrganizePage() {
               { value: 'date', label: '按日期' },
             ]} />
             <span style={{ fontSize: 13, color: '#595959', flexShrink: 0 }}>输出目录：</span>
-            <input
-              style={{ flex: 1, border: '1px solid #d9d9d9', borderRadius: 6, padding: '7px 12px', fontSize: 13, outline: 'none' }}
-              placeholder='归档目标目录'
-              value={outputBase}
-              onChange={e => setOutputBase(e.target.value)}
-            />
+            {outputBase && <Tag style={{ fontFamily: 'monospace', margin: 0 }}>{outputBase}</Tag>}
             <Button icon={<FolderOpenOutlined />}
               onClick={async () => { const p = await pickFolder(); if (p) setOutputBase(p); }}>
-              浏览
+              {outputBase ? '更换' : '选择目录'}
             </Button>
             <Button type="primary" icon={<ThunderboltOutlined />}
               loading={scanning} onClick={handleScan}>开始扫描</Button>

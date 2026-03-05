@@ -349,6 +349,17 @@ pub async fn pick_folder(app: tauri::AppHandle) -> Result<Option<String>, String
     Ok(result.map(|p| p.to_string()))
 }
 
+/// IPC: 打开系统原生文件选择对话框
+#[tauri::command]
+pub async fn pick_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let result = app.dialog()
+        .file()
+        .set_title("选择文件")
+        .blocking_pick_file();
+    Ok(result.map(|p| p.to_string()))
+}
+
 /// 获取隔离区目录：优先设置中的自定义路径，否则使用文件所在盘根目录下的 .filewise_quarantine
 fn get_quarantine_dir(state: &AppState, file_path: &std::path::Path) -> std::path::PathBuf {
     // 1. 尝试从设置中读取自定义隔离目录

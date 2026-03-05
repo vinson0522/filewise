@@ -86,6 +86,7 @@ pub fn run() {
             scan_large_files,
             scan_duplicates,
             pick_folder,
+            pick_file,
             quarantine_file,
             list_quarantine,
             restore_quarantine,

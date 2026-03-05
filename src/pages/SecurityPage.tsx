@@ -10,7 +10,7 @@ import {
   scanSensitiveFiles, exportAuditCsv, exportAuditJson,
   createIntegrityBaseline, checkIntegrity,
   addProtectedDir, removeProtectedDir, listProtectedDirs,
-  pickFolder,
+  pickFolder, pickFile,
 } from '../services/file.service';
 import type { VaultEntry, SensitiveMatch, IntegrityEntry } from '../services/file.service';
 import { formatSize } from '../utils/path.util';
@@ -30,12 +30,18 @@ function VaultTab() {
   };
   useEffect(() => { load(); }, []);
 
-  const handleEncryptFile = async (filePath: string) => {
-    if (!filePath.trim() || !pwd.trim()) { message.warning('请填写文件路径和密码'); return; }
+  const [encryptPath, setEncryptPath] = useState('');
+
+  const handlePickAndEncrypt = async () => {
+    const filePath = await pickFile();
+    if (!filePath) return;
+    setEncryptPath(filePath);
+    if (!pwd.trim()) { message.warning('请先设置保险箱密码'); return; }
     try {
       const res = await vaultEncrypt(filePath, pwd);
       message.success(res);
       setPwd('');
+      setEncryptPath('');
       load();
     } catch (e: any) { message.error(e.message || '加密失败'); }
   };
@@ -51,17 +57,22 @@ function VaultTab() {
     } catch (e: any) { message.error(e.message || '解密失败'); }
   };
 
-  const [encryptPath, setEncryptPath] = useState('');
-
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-        <Input size="small" placeholder="输入要加密的文件完整路径" value={encryptPath}
-          onChange={e => setEncryptPath(e.target.value)} style={{ flex: 1 }} />
+        <Button size="small" icon={<FolderOpenOutlined />} onClick={async () => {
+          const f = await pickFile(); if (f) setEncryptPath(f);
+        }}>选择文件</Button>
+        {encryptPath && <Tag style={{ fontFamily: 'monospace', margin: 0 }}>{encryptPath}</Tag>}
         <Input.Password size="small" placeholder="设置保险箱密码" value={pwd}
           onChange={e => setPwd(e.target.value)} style={{ width: 180 }} />
         <Button type="primary" size="small" icon={<LockOutlined />}
-          onClick={() => handleEncryptFile(encryptPath)}>加密入箱</Button>
+          onClick={encryptPath ? handlePickAndEncrypt : async () => {
+            const f = await pickFile(); if (!f) return; setEncryptPath(f);
+            if (!pwd.trim()) { message.warning('请先设置密码'); return; }
+            try { const res = await vaultEncrypt(f, pwd); message.success(res); setPwd(''); setEncryptPath(''); load(); }
+            catch (e: any) { message.error(e.message || '加密失败'); }
+          }}>加密入箱</Button>
       </div>
 
       <Table size="small" loading={loading} dataSource={entries} rowKey="id" pagination={false}
@@ -119,11 +130,11 @@ function SensitiveScanTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <Input size="small" placeholder="输入要扫描的目录路径" value={scanPath}
-          onChange={e => setScanPath(e.target.value)} style={{ flex: 1 }} />
-        <Button size="small" icon={<FolderOpenOutlined />}
-          onClick={async () => { const p = await pickFolder(); if (p) setScanPath(p); }}>浏览</Button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+        <Button size="small" icon={<FolderOpenOutlined />} onClick={async () => {
+          const p = await pickFolder(); if (p) setScanPath(p);
+        }}>选择目录</Button>
+        {scanPath && <Tag style={{ fontFamily: 'monospace', margin: 0 }}>{scanPath}</Tag>}
         <Button type="primary" size="small" icon={<ScanOutlined />} loading={loading}
           onClick={handleScan}>开始扫描</Button>
       </div>
@@ -226,11 +237,11 @@ function IntegrityTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <Input size="small" placeholder="选择要校验的目录" value={path}
-          onChange={e => setPath(e.target.value)} style={{ flex: 1 }} />
-        <Button size="small" icon={<FolderOpenOutlined />}
-          onClick={async () => { const p = await pickFolder(); if (p) setPath(p); }}>浏览</Button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+        <Button size="small" icon={<FolderOpenOutlined />} onClick={async () => {
+          const p = await pickFolder(); if (p) setPath(p);
+        }}>选择目录</Button>
+        {path && <Tag style={{ fontFamily: 'monospace', margin: 0 }}>{path}</Tag>}
         <Button size="small" icon={<SafetyCertificateOutlined />} loading={loading}
           onClick={handleBaseline}>创建基线</Button>
         <Button type="primary" size="small" icon={<EyeOutlined />} loading={loading}

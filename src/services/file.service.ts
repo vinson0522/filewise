@@ -23,6 +23,11 @@ export async function pickFolder(): Promise<string | null> {
   return safeInvoke<string | null>('pick_folder');
 }
 
+/** 打开系统原生文件选择对话框，返回选中文件路径或 null */
+export async function pickFile(): Promise<string | null> {
+  return safeInvoke<string | null>('pick_file');
+}
+
 export async function scanDirectoryShallow(path: string): Promise<FileEntry[]> {
   const { valid, reason } = validatePath(path);
   if (!valid) throw new Error(reason);

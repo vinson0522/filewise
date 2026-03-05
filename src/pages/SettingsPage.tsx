@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button, Select, Switch, message, Spin, Input, Tag } from 'antd';
-import { PlusOutlined, DeleteOutlined, SaveOutlined, EyeInvisibleOutlined, EyeOutlined, DesktopOutlined, CloudOutlined, FolderOpenOutlined, LockOutlined } from '@ant-design/icons';
+import { DeleteOutlined, SaveOutlined, EyeInvisibleOutlined, EyeOutlined, DesktopOutlined, CloudOutlined, FolderOpenOutlined, LockOutlined } from '@ant-design/icons';
 import { getSettings, saveSettings, listOllamaModels, pickFolder, hasPassword, setPassword } from '../services/file.service';
 import type { AppSettings, OllamaModel } from '../services/file.service';
 
@@ -100,8 +100,6 @@ export default function SettingsPage() {
   const [cfg, setCfg] = useState<AppSettings>(DEFAULT);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [newPath, setNewPath] = useState('');
-  const [newWatchDir, setNewWatchDir] = useState('');
   const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
   const [showApiKey, setShowApiKey] = useState(false);
 
@@ -127,19 +125,6 @@ export default function SettingsPage() {
     setCfg(prev => ({ ...prev, [k]: v }));
   }
 
-  function addExclude() {
-    const p = newPath.trim();
-    if (!p || cfg.excluded_paths.includes(p)) return;
-    set('excluded_paths', [...cfg.excluded_paths, p]);
-    setNewPath('');
-  }
-
-  function addWatchDir() {
-    const p = newWatchDir.trim();
-    if (!p || cfg.watch_dirs.includes(p)) return;
-    set('watch_dirs', [...cfg.watch_dirs, p]);
-    setNewWatchDir('');
-  }
 
   if (loading) return <div style={{ textAlign: 'center', paddingTop: 80 }}><Spin /></div>;
 
@@ -286,12 +271,10 @@ export default function SettingsPage() {
           </div>
           <div className="section-card-body">
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <Input
-                size="small" placeholder="输入要监控的目录，如 D:\\项目"
-                value={newWatchDir} onChange={e => setNewWatchDir(e.target.value)}
-                onPressEnter={addWatchDir} style={{ flex: 1 }}
-              />
-              <Button size="small" icon={<PlusOutlined />} onClick={addWatchDir}>添加</Button>
+              <Button size="small" icon={<FolderOpenOutlined />} onClick={async () => {
+                const p = await pickFolder();
+                if (p && !cfg.watch_dirs.includes(p)) { set('watch_dirs', [...cfg.watch_dirs, p]); }
+              }}>浏览添加</Button>
             </div>
             {cfg.watch_dirs.length === 0 && (
               <div style={{ color: '#bfbfbf', fontSize: 13, padding: '8px 0' }}>暂无监控目录</div>
@@ -315,13 +298,10 @@ export default function SettingsPage() {
           </div>
           <div className="section-card-body">
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <Input
-                size="small" placeholder="输入要排除的路径，如 D:\\私人"
-                value={newPath} onChange={e => setNewPath(e.target.value)}
-                onPressEnter={addExclude}
-                style={{ flex: 1 }}
-              />
-              <Button size="small" icon={<PlusOutlined />} onClick={addExclude}>添加</Button>
+              <Button size="small" icon={<FolderOpenOutlined />} onClick={async () => {
+                const p = await pickFolder();
+                if (p && !cfg.excluded_paths.includes(p)) { set('excluded_paths', [...cfg.excluded_paths, p]); }
+              }}>浏览添加</Button>
             </div>
             {cfg.excluded_paths.map((p: string, i: number) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < cfg.excluded_paths.length - 1 ? '1px solid #fafafa' : 'none' }}>
