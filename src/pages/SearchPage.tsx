@@ -12,7 +12,6 @@ import type { SearchResult } from '../types';
 import { formatSize, formatDate, getParentDir } from '../utils/path.util';
 
 const SUGGESTIONS = ['合同', 'PPT', '视频', '图片', 'Excel'];
-const SCAN_ROOTS = ['C:\\Users', 'D:\\', 'E:\\'];
 const CATEGORIES = [
   { value: 'all',   label: '全部类型' },
   { value: '文档',   label: '文档' },
@@ -54,7 +53,7 @@ export default function SearchPage() {
   const qc = useQueryClient();
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
-  const [scanRoot, setScanRoot] = useState('C:\\Users');
+  const [scanRoot, setScanRoot] = useState('');
   const [watchActive, setWatchActive] = useState(false);
   const [catFilter, setCatFilter] = useState('all');
   const [sizeFilter, setSizeFilter] = useState('all');
@@ -173,15 +172,13 @@ export default function SearchPage() {
           <span style={{ fontSize: 13, color: '#595959', flex: 1 }}>
             搜索需要先建立文件索引。选择目录后点击「建立索引」，索引完成后即可搜索。
           </span>
-          <select
-            value={scanRoot}
-            onChange={e => setScanRoot(e.target.value)}
-            style={{ border: '1px solid #d9d9d9', borderRadius: 6, padding: '4px 8px', fontSize: 13, outline: 'none' }}>
-            {SCAN_ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
           <Button icon={<FolderOpenOutlined />} size="small"
-            onClick={async () => { const p = await pickFolder(); if (p) setScanRoot(p); }}>浏览</Button>
+            onClick={async () => { const p = await pickFolder(); if (p) setScanRoot(p); }}>
+            {scanRoot ? '更换目录' : '选择目录'}
+          </Button>
+          {scanRoot && <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#1677ff', background: '#f0f5ff', padding: '2px 8px', borderRadius: 4 }}>{scanRoot}</span>}
           <Button icon={<DatabaseOutlined />} loading={indexMutation.isPending}
+            disabled={!scanRoot}
             onClick={() => indexMutation.mutate(scanRoot)}>
             {indexMutation.isPending ? '索引中...' : '建立索引'}
           </Button>
