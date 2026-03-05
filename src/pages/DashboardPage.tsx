@@ -27,7 +27,7 @@ export default function DashboardPage() {
 
   /* ---------- queries ---------- */
   const { data: disks = [] } = useQuery({ queryKey: ['disk-info'], queryFn: getDiskInfo, refetchInterval: 60_000 });
-  useQuery({ queryKey: ['index-stats'], queryFn: getIndexStats });
+  const { data: indexStats } = useQuery({ queryKey: ['index-stats'], queryFn: getIndexStats });
   const { data: health } = useQuery<HealthReport>({ queryKey: ['health-score'], queryFn: getHealthScore, staleTime: 5 * 60_000 });
   const [selectedDisk, setSelectedDisk] = useState('');
   const { data: catStats = [] } = useQuery<CategoryStat[]>({
@@ -100,7 +100,6 @@ export default function DashboardPage() {
 
   /* ---------- helpers ---------- */
   const actionLabel: Record<string, string> = { move: '移动', clean: '清理', quarantine: '隔离', index: '索引', restore: '恢复' };
-  const actionColor: Record<string, string> = { move: '#1677ff', clean: '#52c41a', quarantine: '#fa8c16', index: '#722ed1', restore: '#13c2c2' };
 
   const scoreColor = (s: number) => s >= 80 ? '#52c41a' : s >= 60 ? '#faad14' : '#ff4d4f';
   const statusIcon = (s: string) =>
@@ -118,9 +117,50 @@ export default function DashboardPage() {
 
   const displayScore = scanScore ?? health?.score ?? null;
 
+  /* ---------- KPI computed values ---------- */
+  const totalCapacity = disks.reduce((s, d) => s + d.total_space, 0);
+  const totalUsed = disks.reduce((s, d) => s + d.used_space, 0);
+  const usedPct = totalCapacity > 0 ? Math.round(totalUsed / totalCapacity * 100) : 0;
+  const totalFiles = indexStats?.total_files ?? 0;
+
   /* ---------- render ---------- */
   return (
     <div>
+      {/* ========== Page Header ========== */}
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1>\u4eea\u8868\u76d8</h1>
+          <p>\u6b22\u8fce\u56de\u6765\uff0c\u8fd9\u662f\u60a8\u7684\u6587\u4ef6\u7cfb\u7edf\u6982\u89c8\u3002</p>
+        </div>
+      </div>
+
+      {/* ========== KPI Stat Cards ========== */}
+      <div className="grid-4 mb-24">
+        <div className="stat-card">
+          <p className="stat-label">\u5065\u5eb7\u8bc4\u5206</p>
+          <p className="stat-value">{displayScore !== null ? displayScore : '--'}<span className="stat-suffix">\u5206</span></p>
+          <p className="stat-extra" style={{ color: displayScore !== null && displayScore >= 80 ? '#16a34a' : displayScore !== null && displayScore >= 60 ? '#d97706' : 'var(--text-3)' }}>
+            {displayScore !== null ? (displayScore >= 80 ? '\u72b6\u6001\u826f\u597d' : displayScore >= 60 ? '\u5efa\u8bae\u4f18\u5316' : '\u9700\u8981\u5173\u6ce8') : '\u672a\u68c0\u6d4b'}
+          </p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-label">\u603b\u5bb9\u91cf</p>
+          <p className="stat-value">{totalCapacity > 0 ? formatSize(totalCapacity) : '--'}</p>
+          <div className="stat-bar"><div className="stat-bar-fill" style={{ width: `${usedPct}%`, background: 'var(--accent)' }} /></div>
+        </div>
+        <div className="stat-card">
+          <p className="stat-label">\u5df2\u4f7f\u7528</p>
+          <p className="stat-value">{totalUsed > 0 ? formatSize(totalUsed) : '--'}</p>
+          <p className="stat-extra" style={{ color: usedPct > 85 ? '#dc2626' : usedPct > 70 ? '#d97706' : '#16a34a' }}>
+            {usedPct > 0 ? `${usedPct}% \u5df2\u4f7f\u7528` : ''}
+          </p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-label">\u6587\u4ef6\u603b\u6570</p>
+          <p className="stat-value">{totalFiles > 0 ? totalFiles.toLocaleString() : '--'}</p>
+          <p className="stat-extra">{totalFiles > 0 ? '\u5df2\u7d22\u5f15' : '\u5c1a\u672a\u5efa\u7acb\u7d22\u5f15'}</p>
+        </div>
+      </div>
       {/* ========== Hero: Health Check ========== */}
       <div className="hero-card mb-20">
         <div className="hero-left">
@@ -210,8 +250,8 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ========== Disk + Distribution ========== */}
-      <div className="grid-2 mb-20">
+      {/* ========== Disk + Distribution + Activity ========== */}
+      <div className="grid-3 mb-20">
         <div className="section-card">
           <div className="section-card-header">
             <h3>磁盘使用</h3>
@@ -275,27 +315,32 @@ export default function DashboardPage() {
             })()}
           </div>
         </div>
-      </div>
 
-      {/* ========== Recent Activity ========== */}
-      <div className="section-card">
-        <div className="section-card-header">
-          <h3>最近活动</h3>
-          <Button type="link" size="small" onClick={() => setCurrentPage('report')}>查看全部</Button>
-        </div>
-        <div className="section-card-body">
-          {recentLogs.length === 0 ? (
-            <div style={{ color: 'var(--text-3)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>暂无操作记录</div>
-          ) : recentLogs.slice(0, 8).map((r, i) => (
-            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0',
-              borderBottom: i < Math.min(recentLogs.length, 8) - 1 ? '1px solid var(--border-sub)' : 'none', fontSize: 13 }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0, background: actionColor[r.action] ?? 'var(--text-3)' }} />
-              <span style={{ color: 'var(--text-2)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {actionLabel[r.action] ?? r.action}: {r.path?.split(/[\\/]/).pop() ?? r.detail}
-              </span>
-              <span style={{ color: 'var(--text-3)', fontSize: 11, flexShrink: 0 }}>{formatDate(r.ts)}</span>
-            </div>
-          ))}
+        <div className="section-card">
+          <div className="section-card-header">
+            <h3>最近活动</h3>
+            <Button type="link" size="small" onClick={() => setCurrentPage('report')}>查看全部</Button>
+          </div>
+          <div className="section-card-body">
+            {recentLogs.length === 0 ? (
+              <div style={{ color: 'var(--text-3)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>暂无操作记录</div>
+            ) : recentLogs.slice(0, 6).map((r) => {
+              const iconBg: Record<string, string> = { move: '#dbeafe', clean: '#dcfce7', quarantine: '#fef3c7', index: '#f3e8ff', restore: '#ccfbf1' };
+              const iconFg: Record<string, string> = { move: '#2563eb', clean: '#16a34a', quarantine: '#d97706', index: '#7c3aed', restore: '#0d9488' };
+              const iconSymbol: Record<string, string> = { move: '📁', clean: '🧹', quarantine: '⚠️', index: '🗂️', restore: '↩️' };
+              return (
+                <div key={r.id} className="activity-row">
+                  <div className="activity-icon-wrap" style={{ background: iconBg[r.action] ?? '#f1f5f9', color: iconFg[r.action] ?? '#64748b' }}>
+                    <span style={{ fontSize: 14 }}>{iconSymbol[r.action] ?? '📄'}</span>
+                  </div>
+                  <div className="activity-text">
+                    <p className="activity-name">{r.path?.split(/[\\/]/).pop() ?? r.detail}</p>
+                    <p className="activity-meta">{formatDate(r.ts)} · {actionLabel[r.action] ?? r.action}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
