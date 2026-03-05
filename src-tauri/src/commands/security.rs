@@ -38,8 +38,18 @@ pub async fn scan_sensitive_files(
         .map_err(|e| e.to_string())?;
     let re_bank = Regex::new(r"\b(?:62|4\d|5[1-5]|35)\d{14,17}\b")
         .map_err(|e| e.to_string())?;
-    let re_pwd = Regex::new(r"(?i)(?:password|passwd|secret|api[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*\S+")
+    let re_pwd = Regex::new(r"(?i)(?:password|passwd|secret|api[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*(\S+)")
         .map_err(|e| e.to_string())?;
+
+    // Placeholder values that should not trigger alerts
+    let placeholder_values = [
+        "xxx", "your_", "example", "placeholder", "changeme", "none", "null",
+        "todo", "fixme", "replace", "{", "$(", "\"\"", "''", "undefined",
+        "process.env", "os.environ", "env(", "config.", "settings.",
+    ];
+
+    // Documentation file extensions — skip password/key checks for these
+    let doc_exts = ["md", "txt", "html", "htm", "rst", "adoc"];
 
     let text_exts = [
         "txt", "csv", "json", "xml", "yaml", "yml", "toml", "ini", "conf", "cfg",
@@ -98,16 +108,33 @@ pub async fn scan_sensitive_files(
             });
         }
 
-        // Check passwords/keys
-        let pwd_matches: Vec<_> = re_pwd.find_iter(&content).collect();
-        if !pwd_matches.is_empty() {
-            results.push(SensitiveMatch {
-                file_path: file_path.clone(),
-                file_name: file_name.clone(),
-                match_type: "密码/密钥".into(),
-                match_count: pwd_matches.len(),
-                sample: mask(pwd_matches[0].as_str()),
-            });
+        // Check passwords/keys (skip documentation files to reduce false positives)
+        if !doc_exts.contains(&ext.as_str()) {
+            let real_pwd_matches: Vec<_> = re_pwd.captures_iter(&content)
+                .filter(|cap| {
+                    if let Some(val) = cap.get(1) {
+                        let v = val.as_str().to_lowercase();
+                        // Must be at least 6 chars to be a real secret
+                        if v.len() < 6 { return false; }
+                        // Skip placeholder/template values
+                        if placeholder_values.iter().any(|p| v.starts_with(p)) { return false; }
+                        // Skip quoted empty or generic values
+                        if v.starts_with('"') || v.starts_with('\'') { return false; }
+                        true
+                    } else {
+                        false
+                    }
+                })
+                .collect();
+            if !real_pwd_matches.is_empty() {
+                results.push(SensitiveMatch {
+                    file_path: file_path.clone(),
+                    file_name: file_name.clone(),
+                    match_type: "密码/密钥".into(),
+                    match_count: real_pwd_matches.len(),
+                    sample: mask(real_pwd_matches[0].get(0).unwrap().as_str()),
+                });
+            }
         }
     }
 

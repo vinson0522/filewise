@@ -114,7 +114,20 @@ pub struct HealthReport {
     pub issues: Vec<String>,     // 具体问题描述
 }
 
-/// IPC: 计算磁盘健康评分（基于索引统计 + 磁盘使用率）
+/// 快速统计目录大小（限深度2，避免太慢）
+fn dir_size_quick(path: &std::path::Path, max_depth: usize) -> u64 {
+    if !path.exists() { return 0; }
+    walkdir::WalkDir::new(path)
+        .max_depth(max_depth)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| e.metadata().ok())
+        .map(|m| m.len())
+        .sum()
+}
+
+/// IPC: 计算磁盘健康评分（多维度综合评估）
 #[tauri::command]
 pub async fn get_health_score(state: State<'_, AppState>) -> Result<HealthReport, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -122,71 +135,109 @@ pub async fn get_health_score(state: State<'_, AppState>) -> Result<HealthReport
     let mut issues: Vec<String> = Vec::new();
     let mut freeable_bytes: u64 = 0;
 
-    // 1. 磁盘使用率检查（最多扣 30 分）
-    let mut disk_ok = true;
+    // 1. 磁盘使用率检查（每个磁盘最多扣15分）
     if let Ok(sys_info) = get_disk_info_inner() {
         for disk in &sys_info {
+            if disk.total_space == 0 { continue; }
             let pct = disk.used_space as f64 / disk.total_space as f64 * 100.0;
             if pct > 95.0 {
-                score -= 30; issues.push(format!("{} 磁盘使用率 {:.0}%，严重不足", disk.mount_point, pct));
-                disk_ok = false;
+                score -= 15; issues.push(format!("{} 使用率 {:.0}%，空间严重不足", disk.mount_point, pct));
             } else if pct > 85.0 {
-                score -= 15; issues.push(format!("{} 磁盘使用率 {:.0}%，建议清理", disk.mount_point, pct));
-                disk_ok = false;
-            } else if pct > 75.0 {
-                score -= 5;
+                score -= 10; issues.push(format!("{} 使用率 {:.0}%，空间偏紧", disk.mount_point, pct));
+            } else if pct > 70.0 {
+                score -= 5; issues.push(format!("{} 使用率 {:.0}%", disk.mount_point, pct));
             }
         }
     }
-    if disk_ok { /* no deduction */ }
 
-    // 2. 临时文件估算（查 audit_log 中的 clean 操作）
+    // 2. 临时文件（降低阈值，50MB 起扣）
     if let Ok(temp) = std::env::var("TEMP") {
-        let p = std::path::PathBuf::from(&temp);
-        if p.exists() {
-            let size: u64 = walkdir::WalkDir::new(&p).into_iter()
-                .filter_map(|e| e.ok())
-                .filter(|e| e.file_type().is_file())
-                .filter_map(|e| e.metadata().ok())
-                .map(|m| m.len())
-                .sum();
-            freeable_bytes += size;
-            if size > 1024 * 1024 * 1024 {
-                score -= 15; issues.push(format!("临时文件 {} GB，建议清理", size / (1024*1024*1024)));
-            } else if size > 200 * 1024 * 1024 {
-                score -= 8; issues.push(format!("临时文件 {} MB，建议清理", size / (1024*1024)));
-            }
+        let size = dir_size_quick(&std::path::PathBuf::from(&temp), 3);
+        freeable_bytes += size;
+        let mb = size / (1024 * 1024);
+        if mb > 1024 {
+            score -= 12; issues.push(format!("临时文件 {:.1} GB，建议清理", size as f64 / 1073741824.0));
+        } else if mb > 200 {
+            score -= 8; issues.push(format!("临时文件 {} MB，建议清理", mb));
+        } else if mb > 50 {
+            score -= 3; issues.push(format!("临时文件 {} MB", mb));
         }
     }
 
-    // 3. 索引是否过期（超过 7 天没重新索引扣分）
+    // 3. 桌面文件数量检查（桌面堆积是常见问题）
+    if let Some(desktop) = dirs::desktop_dir() {
+        let count = std::fs::read_dir(&desktop)
+            .map(|rd| rd.filter_map(|e| e.ok()).count())
+            .unwrap_or(0);
+        if count > 100 {
+            score -= 8; issues.push(format!("桌面有 {} 个文件/文件夹，建议整理", count));
+        } else if count > 50 {
+            score -= 4; issues.push(format!("桌面有 {} 个文件/文件夹", count));
+        }
+    }
+
+    // 4. 下载文件夹大小
+    if let Some(downloads) = dirs::download_dir() {
+        let size = dir_size_quick(&downloads, 2);
+        let gb = size as f64 / 1073741824.0;
+        if gb > 10.0 {
+            score -= 8; issues.push(format!("下载文件夹 {:.1} GB，建议清理", gb));
+            freeable_bytes += size / 2; // 估算一半可清理
+        } else if gb > 3.0 {
+            score -= 4; issues.push(format!("下载文件夹 {:.1} GB", gb));
+        }
+    }
+
+    // 5. 索引状态（未建索引是主要扣分项）
     if let Ok(last_indexed) = db.query_row(
         "SELECT MAX(indexed_at) FROM file_index", [], |r| r.get::<_, Option<i64>>(0),
     ) {
         match last_indexed {
-            None => { score -= 10; issues.push("尚未建立文件索引，无法提供完整功能".into()); }
+            None => { score -= 15; issues.push("尚未建立文件索引，搜索功能不可用".into()); }
             Some(ts) => {
                 let days = (chrono::Utc::now().timestamp() - ts) / 86400;
-                if days > 14 { score -= 10; issues.push(format!("索引已 {} 天未更新", days)); }
-                else if days > 7 { score -= 5; }
+                if days > 30 {
+                    score -= 10; issues.push(format!("索引已 {} 天未更新，数据可能不准确", days));
+                } else if days > 7 {
+                    score -= 5; issues.push(format!("索引 {} 天前更新", days));
+                }
             }
         }
     }
 
-    // 4. 重复文件（有记录的）
+    // 6. 重复文件
     let dup_count: i64 = db.query_row(
         "SELECT COUNT(*) FROM file_index WHERE hash IS NOT NULL
          AND hash IN (SELECT hash FROM file_index WHERE hash!='' GROUP BY hash HAVING COUNT(*)>1)",
         [], |r| r.get(0),
     ).unwrap_or(0);
-    if dup_count > 1000 {
-        score -= 10; issues.push(format!("{} 个重复文件，建议去重", dup_count));
-    } else if dup_count > 100 {
+    if dup_count > 500 {
+        score -= 10; issues.push(format!("{} 个重复文件，浪费空间", dup_count));
+    } else if dup_count > 50 {
         score -= 5; issues.push(format!("{} 个重复文件", dup_count));
     }
 
+    // 7. 监控目录是否配置
+    let watch_count: i64 = db.query_row(
+        "SELECT COUNT(*) FROM settings WHERE key = 'watch_dirs' AND value != '[]' AND value != ''",
+        [], |r| r.get(0),
+    ).unwrap_or(0);
+    if watch_count == 0 {
+        score -= 5; issues.push("未配置文件监控目录".into());
+    }
+
+    // 8. 最近是否做过清理（30天内无清理记录扣分）
+    let recent_clean: i64 = db.query_row(
+        "SELECT COUNT(*) FROM audit_log WHERE action LIKE '%clean%' AND ts > ?1",
+        [chrono::Utc::now().timestamp() - 30 * 86400],
+        |r| r.get(0),
+    ).unwrap_or(0);
+    if recent_clean == 0 {
+        score -= 5; issues.push("近30天未执行过清理".into());
+    }
+
     let final_score = score.clamp(0, 100) as u8;
-    if issues.is_empty() { issues.push("系统状况良好".into()); }
+    if issues.is_empty() { issues.push("系统状况良好，继续保持！".into()); }
 
     Ok(HealthReport { score: final_score, freeable_bytes, issues })
 }
