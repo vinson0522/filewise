@@ -101,11 +101,45 @@ impl AppState {
                 value TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id          TEXT PRIMARY KEY,
+                title       TEXT NOT NULL,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                updated_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id  TEXT NOT NULL,
+                role        TEXT NOT NULL,
+                content     TEXT NOT NULL,
+                tool_name   TEXT,
+                tool_result TEXT,
+                widget_type TEXT,
+                widget_data TEXT,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS automation_rules (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                name            TEXT NOT NULL,
+                trigger_type    TEXT NOT NULL,
+                trigger_config  TEXT NOT NULL DEFAULT '{}',
+                action_type     TEXT NOT NULL,
+                action_config   TEXT NOT NULL DEFAULT '{}',
+                enabled         INTEGER NOT NULL DEFAULT 1,
+                last_run        TEXT,
+                run_count       INTEGER NOT NULL DEFAULT 0,
+                created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+
             CREATE INDEX IF NOT EXISTS idx_file_path     ON file_index(path);
             CREATE INDEX IF NOT EXISTS idx_file_category ON file_index(category);
             CREATE INDEX IF NOT EXISTS idx_file_ext      ON file_index(extension);
             CREATE INDEX IF NOT EXISTS idx_file_size     ON file_index(size);
             CREATE INDEX IF NOT EXISTS idx_audit_ts      ON audit_log(ts);
+            CREATE INDEX IF NOT EXISTS idx_chat_msg_session ON chat_messages(session_id);
 
             CREATE TRIGGER IF NOT EXISTS protect_audit_delete
             BEFORE DELETE ON audit_log

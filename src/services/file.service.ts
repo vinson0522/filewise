@@ -2,7 +2,8 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   FileEntry, DiskInfo, MoveOperation,
   OperationResult, IndexStats, SearchResult,
-  SnapshotInfo,
+  SnapshotInfo, ChatSession, ChatMessageRecord,
+  AutomationRule, Suggestion, AdvancedQuery, AdvancedSearchResult,
 } from '../types';
 import { validatePath } from '../utils/path.util';
 
@@ -469,4 +470,97 @@ export async function revealInExplorer(path: string): Promise<void> {
   await tauriInvoke('plugin:opener|open_path', { path: parent }).catch(() =>
     tauriInvoke('open_path', { path: parent })
   );
+}
+
+// ===================== 会话管理 =====================
+
+export async function createChatSession(title?: string): Promise<ChatSession> {
+  return safeInvoke<ChatSession>('create_chat_session', { title });
+}
+
+export async function listChatSessions(): Promise<ChatSession[]> {
+  return safeInvoke<ChatSession[]>('list_chat_sessions');
+}
+
+export async function getChatMessages(sessionId: string): Promise<ChatMessageRecord[]> {
+  return safeInvoke<ChatMessageRecord[]>('get_chat_messages', { sessionId });
+}
+
+export async function saveChatMessage(
+  sessionId: string, role: string, content: string,
+  toolName?: string, toolResult?: string,
+  widgetType?: string, widgetData?: string,
+): Promise<number> {
+  return safeInvoke<number>('save_chat_message', {
+    sessionId, role, content, toolName, toolResult, widgetType, widgetData,
+  });
+}
+
+export async function deleteChatSession(sessionId: string): Promise<void> {
+  return safeInvoke<void>('delete_chat_session', { sessionId });
+}
+
+export async function renameChatSession(sessionId: string, title: string): Promise<void> {
+  return safeInvoke<void>('rename_chat_session', { sessionId, title });
+}
+
+export async function clearChatMessages(sessionId: string): Promise<void> {
+  return safeInvoke<void>('clear_chat_messages', { sessionId });
+}
+
+// ===================== AI 增强 =====================
+
+export interface AIChatMsg { role: string; content: string; }
+
+export async function aiChatStream(messages: AIChatMsg[]): Promise<string> {
+  return safeInvoke<string>('ai_chat_stream', { messages });
+}
+
+export async function aiVisionChat(imagePath: string, prompt: string, model?: string): Promise<string> {
+  return safeInvoke<string>('ai_vision_chat', { imagePath, prompt, model });
+}
+
+export async function readFilePreview(path: string, maxBytes?: number): Promise<string> {
+  return safeInvoke<string>('read_file_preview', { path, maxBytes });
+}
+
+export async function searchFilesAdvanced(query: AdvancedQuery, limit?: number): Promise<AdvancedSearchResult[]> {
+  return safeInvoke<AdvancedSearchResult[]>('search_files_advanced', { query, limit });
+}
+
+export async function getUserBehaviorSummary(): Promise<string> {
+  return safeInvoke<string>('get_user_behavior_summary');
+}
+
+// ===================== 自动化规则 =====================
+
+export async function createAutomationRule(
+  name: string, triggerType: string, triggerConfig: string,
+  actionType: string, actionConfig: string,
+): Promise<AutomationRule> {
+  return safeInvoke<AutomationRule>('create_automation_rule', {
+    name, triggerType, triggerConfig, actionType, actionConfig,
+  });
+}
+
+export async function listAutomationRules(): Promise<AutomationRule[]> {
+  return safeInvoke<AutomationRule[]>('list_automation_rules');
+}
+
+export async function toggleAutomationRule(id: number, enabled: boolean): Promise<void> {
+  return safeInvoke<void>('toggle_automation_rule', { id, enabled });
+}
+
+export async function deleteAutomationRule(id: number): Promise<void> {
+  return safeInvoke<void>('delete_automation_rule', { id });
+}
+
+export async function markRuleExecuted(id: number): Promise<void> {
+  return safeInvoke<void>('mark_rule_executed', { id });
+}
+
+// ===================== 主动建议 =====================
+
+export async function getProactiveSuggestions(): Promise<Suggestion[]> {
+  return safeInvoke<Suggestion[]>('get_proactive_suggestions');
 }

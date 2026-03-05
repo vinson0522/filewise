@@ -102,10 +102,17 @@ export interface CleanItem {
 }
 
 export interface AgentActionResult {
-  type: 'disk_info' | 'clean_scan' | 'large_files' | 'duplicates' | 'index_stats' | 'search' | 'navigate';
+  type: 'disk_info' | 'clean_scan' | 'large_files' | 'duplicates' | 'index_stats' | 'search' | 'navigate'
+    | 'quarantine' | 'vault' | 'security' | 'image' | 'watcher' | 'automation' | 'file_preview' | 'plan';
   label: string;
   data: unknown;
   navigateTo?: PageKey;
+}
+
+export interface ChatWidget {
+  type: 'file_list' | 'disk_chart' | 'clean_targets' | 'task_plan' | 'image_preview' | 'suggestion_list' | 'quarantine_list';
+  data: unknown;
+  actions?: { label: string; action: string; params?: unknown }[];
 }
 
 export interface ChatMessage {
@@ -113,4 +120,83 @@ export interface ChatMessage {
   text: string;
   timestamp?: number;
   actionResult?: AgentActionResult;
+  widget?: ChatWidget;
+  isStreaming?: boolean;
+}
+
+// ===================== 会话管理 =====================
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface ChatMessageRecord {
+  id: number;
+  session_id: string;
+  role: string;
+  content: string;
+  tool_name?: string;
+  tool_result?: string;
+  widget_type?: string;
+  widget_data?: string;
+  created_at: string;
+}
+
+// ===================== 自动化规则 =====================
+
+export interface AutomationRule {
+  id: number;
+  name: string;
+  trigger_type: 'file_created' | 'schedule' | 'disk_threshold';
+  trigger_config: string;
+  action_type: 'move' | 'clean' | 'tag' | 'encrypt' | 'notify' | 'quarantine';
+  action_config: string;
+  enabled: boolean;
+  last_run?: string;
+  run_count: number;
+  created_at: string;
+}
+
+export interface Suggestion {
+  type: 'warning' | 'info' | 'tip';
+  title: string;
+  message: string;
+  action?: string;
+  priority: number;
+}
+
+// ===================== 高级搜索 =====================
+
+export interface AdvancedQuery {
+  keyword?: string;
+  category?: string;
+  extensions?: string[];
+  size_min?: number;
+  size_max?: number;
+  modified_after?: string;
+  modified_before?: string;
+  path_prefix?: string;
+}
+
+export interface AdvancedSearchResult {
+  path: string;
+  name: string;
+  size: number;
+  modified_at?: number;
+  category?: string;
+  extension?: string;
+}
+
+// ===================== 任务计划 =====================
+
+export interface TaskPlanStep {
+  tool: string;
+  params: Record<string, unknown>;
+  description: string;
+  status: 'pending' | 'running' | 'done' | 'error' | 'skipped';
+  result?: string;
 }

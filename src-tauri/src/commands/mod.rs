@@ -1,4 +1,6 @@
 pub mod ai;
+pub mod automation;
+pub mod chat;
 pub mod clean;
 pub mod file_ops;
 pub mod image;

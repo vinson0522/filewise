@@ -4,6 +4,8 @@ pub mod security;
 pub mod state;
 
 use commands::ai::*;
+use commands::automation::*;
+use commands::chat::*;
 use commands::clean::*;
 use commands::file_ops::*;
 use commands::image::*;
@@ -134,6 +136,27 @@ pub fn run() {
             list_tagged_images,
             remove_image_tag,
             read_image_base64,
+            // AI enhanced
+            ai_chat_stream,
+            ai_vision_chat,
+            read_file_preview,
+            search_files_advanced,
+            get_user_behavior_summary,
+            // chat sessions
+            create_chat_session,
+            list_chat_sessions,
+            get_chat_messages,
+            save_chat_message,
+            delete_chat_session,
+            rename_chat_session,
+            clear_chat_messages,
+            // automation
+            create_automation_rule,
+            list_automation_rules,
+            toggle_automation_rule,
+            delete_automation_rule,
+            mark_rule_executed,
+            get_proactive_suggestions,
             // security (S2-S5)
             scan_sensitive_files,
             export_audit_csv,
