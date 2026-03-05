@@ -12,6 +12,46 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v1.6.0',
+    date: '2026-03-05',
+    tag: 'minor',
+    features: [
+      '全新三栏式布局：Activity Bar（图标分类栏）+ Sidebar（动态导航）+ Content',
+      'Activity Bar 与 Sidebar 联动：按分类切换侧边栏内容',
+      '仪表盘 KPI 卡片：健康评分、总容量、已使用、文件总数',
+      '仪表盘页面标题与副标题',
+      '最近活动改用 Ant Design 图标 + 彩色圆形背景',
+    ],
+    improvements: [
+      '导航分为 5 大分类：概览、文件管理、系统工具、AI 助手、数据管理',
+      '卡片圆角从 8px 升级为 12px',
+      '侧边栏 active 状态改为白底 + 边框 + 阴影',
+      'CSS 新增 --bg-rail、--shadow-card 变量',
+      '磁盘进度条高度从 4px 增加到 6px',
+    ],
+  },
+  {
+    version: 'v1.5.0',
+    date: '2026-03-04',
+    tag: 'minor',
+    features: [
+      '图片视觉标签：Ollama 视觉模型自动标注图片内容',
+      '图片标签搜索：按标签关键词检索图片',
+      '安全保险箱升级：Argon2id 密钥派生 + KEK/DEK 双密钥',
+      '流式加密：4MB 分块独立加密 + BLAKE3 完整性校验',
+      '密码强度检测（0-4 评分 + 改进建议）',
+      'AI Agent 多轮推理：ReAct 循环最多 5 轮自动执行',
+      '后端路径保护强制执行：移动/清理/隔离操作前校验受保护目录',
+    ],
+    fixes: [
+      '修复旧保险箱数据库迁移兼容问题',
+    ],
+    improvements: [
+      'AI Agent 双层架构：快速正则优先 → AI ReAct 兜底',
+      '实时显示 Agent 执行状态',
+    ],
+  },
+  {
     version: 'v1.4.0',
     date: '2026-03-04',
     tag: 'minor',
