@@ -89,6 +89,7 @@ export default function AppShell() {
   const [tourOpen, setTourOpen] = useState(false);
   const [hasPwd, setHasPwd] = useState(false);
 
+  const refRail = useRef<HTMLElement>(null);
   const refHero = useRef<HTMLDivElement>(null);
   const refNav = useRef<HTMLDivElement>(null);
   const refBottom = useRef<HTMLDivElement>(null);
@@ -109,10 +110,11 @@ export default function AppShell() {
 
   const tourSteps: TourProps['steps'] = [
     { title: '欢迎使用 FileWise！', description: '让我带你快速了解主要功能，只需 30 秒。', target: null },
-    { title: '一键体检', description: '点击这里全面检测系统健康状态。', target: () => refHero.current!, placement: 'bottom' },
-    { title: '核心功能', description: '在侧边栏切换主要功能。', target: () => refNav.current!, placement: 'right' },
-    { title: '设置与帮助', description: '底部可以切换主题、设置和帮助。', target: () => refBottom.current!, placement: 'right' },
-    { title: '开始使用', description: '试试点击「一键体检」吧！', target: () => refContent.current!, placement: 'left' },
+    { title: '功能分区', description: '左侧图标栏按分类快速切换：概览、文件管理、系统工具、AI 助手、数据管理。', target: () => refRail.current!, placement: 'right' },
+    { title: '导航菜单', description: '侧边栏显示当前分类下的具体功能页面，点击即可切换。', target: () => refNav.current!, placement: 'right' },
+    { title: '帮助与锁定', description: '底部可以查看帮助中心或锁定应用。', target: () => refBottom.current!, placement: 'right' },
+    { title: '一键体检', description: '在仪表盘点击「一键体检」全面检测系统健康状态。', target: () => refHero.current!, placement: 'bottom' },
+    { title: '开始探索', description: '试试左侧图标栏，切换不同功能区吧！', target: () => refContent.current!, placement: 'left' },
   ];
 
   function closeTour() { setTourOpen(false); localStorage.setItem(TOUR_KEY, '1'); }
@@ -131,7 +133,7 @@ export default function AppShell() {
   return (
     <div className="shell">
       {/* ── Column 1: Activity Bar (48px icon rail) ── */}
-      <aside className="activity-bar">
+      <aside className="activity-bar" ref={refRail}>
         {SECTIONS.map(section => (
           <div key={section.key}
             className={`rail-icon${activeSection === section.key ? ' active' : ''}`}

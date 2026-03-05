@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Button, Card, Tag, Input, Empty, Spin, message, Table, Tooltip, Select } from 'antd';
-import { PictureOutlined, SearchOutlined, FolderOpenOutlined, TagsOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Button, Card, Tag, Input, Empty, Spin, message, Table, Tooltip, Select, Image } from 'antd';
+import { PictureOutlined, SearchOutlined, FolderOpenOutlined, TagsOutlined, DeleteOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { pickFolder, tagImages, searchImagesByTag, listTaggedImages, removeImageTag, checkOllama, listOllamaModels } from '../services/file.service';
 import type { ImageTag, TagProgress } from '../services/file.service';
 import { formatSize } from '../utils/path.util';
@@ -103,6 +104,23 @@ export default function ImagePage() {
   const sortedTags = Object.entries(allTags).sort((a, b) => b[1] - a[1]).slice(0, 20);
 
   const columns = [
+    {
+      title: '预览',
+      key: 'preview',
+      width: 72,
+      render: (_: unknown, record: ImageTag) => (
+        <Image
+          src={convertFileSrc(record.path)}
+          width={48}
+          height={48}
+          style={{ objectFit: 'cover', borderRadius: 6 }}
+          fallback="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDQ4IDQ4Ij48cmVjdCB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIGZpbGw9IiNmMGYwZjQiLz48dGV4dCB4PSIyNCIgeT0iMjgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNiZmJmYmYiIGZvbnQtc2l6ZT0iMTIiPj88L3RleHQ+PC9zdmc+"
+          preview={{
+            mask: <EyeOutlined style={{ fontSize: 14 }} />,
+          }}
+        />
+      ),
+    },
     {
       title: '文件名',
       dataIndex: 'file_name',
