@@ -10,7 +10,7 @@ use crate::state::AppState;
 const CURRENT_VERSION: &str = "1.4.0";
 
 /// GitHub 仓库地址，修改为你的实际仓库
-const GITHUB_REPO: &str = "your-username/filewise";
+const GITHUB_REPO: &str = "vinson0522/filewise";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateInfo {

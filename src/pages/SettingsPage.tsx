@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button, Select, Switch, message, Spin, Input, Tag } from 'antd';
-import { PlusOutlined, DeleteOutlined, SaveOutlined, EyeInvisibleOutlined, EyeOutlined } from '@ant-design/icons';
-import { getSettings, saveSettings, listOllamaModels } from '../services/file.service';
+import { PlusOutlined, DeleteOutlined, SaveOutlined, EyeInvisibleOutlined, EyeOutlined, DesktopOutlined, CloudOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { getSettings, saveSettings, listOllamaModels, pickFolder } from '../services/file.service';
 import type { AppSettings, OllamaModel } from '../services/file.service';
 
 const DEFAULT: AppSettings = {
@@ -74,7 +74,7 @@ export default function SettingsPage() {
 
   if (loading) return <div style={{ textAlign: 'center', paddingTop: 80 }}><Spin /></div>;
 
-  const [localAI, setLocalAI] = [cfg.local_ai, (v: boolean) => set('local_ai', v)];
+  const localAI = cfg.local_ai;
   const [autoOrg, setAutoOrg] = [cfg.auto_organize, (v: boolean) => set('auto_organize', v)];
   const [snapshot, setSnapshot] = [cfg.snapshot_before_op, (v: boolean) => set('snapshot_before_op', v)];
   const [autoStart, setAutoStart] = [cfg.auto_start, (v: boolean) => set('auto_start', v)];
@@ -97,58 +97,68 @@ export default function SettingsPage() {
         <p>配置 AI 模型、监控规则与个人偏好</p>
       </div>
 
-      <div className="grid-2">
-        {/* AI Model */}
-        <div className="section-card">
-          <div className="section-card-header"><h3>AI 模型配置</h3></div>
-          <div className="section-card-body">
-            {row('本地模型推理', '使用 Ollama 在本地运行 AI 模型', <Switch checked={localAI} onChange={setLocalAI} />)}
-            {localAI && row('模型选择', ollamaModels.length > 0 ? `已检测到 ${ollamaModels.length} 个本地模型` : 'Ollama 未运行或无已安装模型',
-              <Select value={cfg.ai_model} onChange={v => set('ai_model', v)} style={{ width: 220 }}
-                options={ollamaModels.length > 0
-                  ? ollamaModels.map(m => ({ value: m.name, label: m.name }))
-                  : [
-                      { value: 'qwen2.5:7b',  label: 'Qwen 2.5-7B（推荐）' },
-                      { value: 'llama3.2:3b', label: 'Llama 3.2-3B（轻量）' },
-                      { value: 'minicpm-v',   label: 'MiniCPM-V（视觉）' },
-                    ]} />
-            )}
-          </div>
-        </div>
+      {/* AI Model - unified card */}
+      <div className="section-card mb-16">
+        <div className="section-card-header"><h3>AI 模型配置</h3></div>
+        <div className="section-card-body">
+          {row('推理模式', '选择使用本地模型或云端模型',
+            <Select value={localAI ? 'local' : 'cloud'}
+              onChange={v => set('local_ai', v === 'local')}
+              style={{ width: 180 }}
+              options={[
+                { value: 'local', label: <span><DesktopOutlined /> 本地模型 (Ollama)</span> },
+                { value: 'cloud', label: <span><CloudOutlined /> 云端模型</span> },
+              ]} />
+          )}
 
-        {/* Cloud AI */}
-        <div className="section-card">
-          <div className="section-card-header"><h3>云端 AI 配置</h3></div>
-          <div className="section-card-body">
-            {row('云端厂商', '关闭本地模型后自动使用云端',
-              <Select value={cfg.cloud_ai_provider || undefined} onChange={v => set('cloud_ai_provider', v)}
-                placeholder="选择厂商" allowClear style={{ width: 180 }} options={CLOUD_PROVIDERS} />
-            )}
-            {cfg.cloud_ai_provider && row('API Key', null,
-              <Input
-                size="small" style={{ width: 220 }}
-                type={showApiKey ? 'text' : 'password'}
-                value={cfg.cloud_ai_api_key}
-                onChange={e => set('cloud_ai_api_key', e.target.value)}
-                placeholder="sk-..."
-                suffix={<span style={{ cursor: 'pointer' }} onClick={() => setShowApiKey(!showApiKey)}>
-                  {showApiKey ? <EyeOutlined /> : <EyeInvisibleOutlined />}
-                </span>}
-              />
-            )}
-            {cfg.cloud_ai_provider && row('模型名称', '留空使用厂商默认模型',
-              <Input size="small" style={{ width: 220 }} value={cfg.cloud_ai_model}
-                onChange={e => set('cloud_ai_model', e.target.value)} placeholder="如 deepseek-chat" />
-            )}
-            {cfg.cloud_ai_provider && row('自定义 Base URL', '留空使用厂商默认地址',
-              <Input size="small" style={{ width: 220 }} value={cfg.cloud_ai_base_url}
-                onChange={e => set('cloud_ai_base_url', e.target.value)} placeholder="https://api.example.com" />
-            )}
-          </div>
+          {localAI ? (
+            <>
+              {row('本地模型', ollamaModels.length > 0 ? `已检测到 ${ollamaModels.length} 个模型` : 'Ollama 未运行或无模型',
+                <Select value={cfg.ai_model} onChange={v => set('ai_model', v)} style={{ width: 220 }}
+                  options={ollamaModels.length > 0
+                    ? ollamaModels.map(m => ({ value: m.name, label: m.name }))
+                    : [
+                        { value: 'qwen2.5:7b',  label: 'Qwen 2.5-7B（推荐）' },
+                        { value: 'llama3.2:3b', label: 'Llama 3.2-3B（轻量）' },
+                        { value: 'minicpm-v',   label: 'MiniCPM-V（视觉）' },
+                      ]} />
+              )}
+              <div style={{ fontSize: 12, color: '#8c8c8c', padding: '4px 0 0', lineHeight: 1.6 }}>
+                需先安装 <a href="https://ollama.ai" target="_blank" rel="noreferrer">Ollama</a> 并运行 <code>ollama serve</code>，然后拉取模型如 <code>ollama pull qwen2.5:7b</code>
+              </div>
+            </>
+          ) : (
+            <>
+              {row('云端厂商', null,
+                <Select value={cfg.cloud_ai_provider || undefined} onChange={v => set('cloud_ai_provider', v)}
+                  placeholder="选择厂商" style={{ width: 220 }} options={CLOUD_PROVIDERS} />
+              )}
+              {row('API Key', null,
+                <Input
+                  size="small" style={{ width: 220 }}
+                  type={showApiKey ? 'text' : 'password'}
+                  value={cfg.cloud_ai_api_key}
+                  onChange={e => set('cloud_ai_api_key', e.target.value)}
+                  placeholder="sk-..."
+                  suffix={<span style={{ cursor: 'pointer' }} onClick={() => setShowApiKey(!showApiKey)}>
+                    {showApiKey ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                  </span>}
+                />
+              )}
+              {row('模型名称', '留空使用厂商默认模型',
+                <Input size="small" style={{ width: 220 }} value={cfg.cloud_ai_model}
+                  onChange={e => set('cloud_ai_model', e.target.value)} placeholder="如 deepseek-chat" />
+              )}
+              {row('自定义 Base URL', '留空使用厂商默认地址',
+                <Input size="small" style={{ width: 220 }} value={cfg.cloud_ai_base_url}
+                  onChange={e => set('cloud_ai_base_url', e.target.value)} placeholder="https://api.example.com" />
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      <div className="grid-2" style={{ marginTop: 0 }}>
+      <div className="grid-2">
         {/* Organize & Clean */}
         <div className="section-card">
           <div className="section-card-header"><h3>整理与清理</h3></div>
@@ -170,13 +180,29 @@ export default function SettingsPage() {
         <div className="section-card">
           <div className="section-card-header"><h3>存储路径</h3></div>
           <div className="section-card-body">
-            {row('索引存放目录', '留空使用默认应用数据目录',
-              <Input size="small" style={{ width: 220 }} value={cfg.index_dir}
-                onChange={e => set('index_dir', e.target.value)} placeholder="默认: AppData/filewise" />
+            {row('索引存放目录', cfg.index_dir || '默认: AppData/filewise',
+              <Button size="small" icon={<FolderOpenOutlined />}
+                onClick={async () => { const p = await pickFolder(); if (p) set('index_dir', p); }}>
+                {cfg.index_dir ? '更换' : '选择目录'}
+              </Button>
             )}
-            {row('隔离区目录', '留空则自动使用文件所在盘符',
-              <Input size="small" style={{ width: 220 }} value={cfg.quarantine_dir}
-                onChange={e => set('quarantine_dir', e.target.value)} placeholder="默认: 文件同盘" />
+            {cfg.index_dir && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
+                <Tag style={{ fontFamily: 'monospace', margin: 0 }}>{cfg.index_dir}</Tag>
+                <Button type="link" size="small" danger onClick={() => set('index_dir', '')}>重置默认</Button>
+              </div>
+            )}
+            {row('隔离区目录', cfg.quarantine_dir || '默认: 文件所在盘符',
+              <Button size="small" icon={<FolderOpenOutlined />}
+                onClick={async () => { const p = await pickFolder(); if (p) set('quarantine_dir', p); }}>
+                {cfg.quarantine_dir ? '更换' : '选择目录'}
+              </Button>
+            )}
+            {cfg.quarantine_dir && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
+                <Tag style={{ fontFamily: 'monospace', margin: 0 }}>{cfg.quarantine_dir}</Tag>
+                <Button type="link" size="small" danger onClick={() => set('quarantine_dir', '')}>重置默认</Button>
+              </div>
             )}
           </div>
         </div>
