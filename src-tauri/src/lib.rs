@@ -7,8 +7,10 @@ use commands::ai::*;
 use commands::clean::*;
 use commands::file_ops::*;
 use commands::index::*;
+use commands::security::*;
 use commands::settings::*;
 use commands::snapshot::*;
+use commands::vault::*;
 use state::AppState;
 use tauri::Manager;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -118,6 +120,21 @@ pub fn run() {
             list_ollama_models,
             ai_chat,
             ai_classify_files,
+            // vault (S1)
+            vault_encrypt,
+            vault_decrypt,
+            vault_list,
+            vault_remove,
+            // security (S2-S5)
+            scan_sensitive_files,
+            export_audit_csv,
+            export_audit_json,
+            create_integrity_baseline,
+            check_integrity,
+            add_protected_dir,
+            remove_protected_dir,
+            list_protected_dirs,
+            is_path_protected,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

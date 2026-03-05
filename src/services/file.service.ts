@@ -319,6 +319,92 @@ export async function verifyPassword(password: string): Promise<boolean> {
   return safeInvoke<boolean>('verify_password', { password });
 }
 
+// ===================== 保险箱 (S1) =====================
+
+export interface VaultEntry {
+  id: number;
+  original_path: string;
+  original_name: string;
+  size: number;
+  encrypted_at: string;
+}
+
+export async function vaultEncrypt(path: string, password: string): Promise<string> {
+  return safeInvoke<string>('vault_encrypt', { path, password });
+}
+
+export async function vaultDecrypt(id: number, password: string, restorePath?: string): Promise<string> {
+  return safeInvoke<string>('vault_decrypt', { id, password, restorePath });
+}
+
+export async function vaultList(): Promise<VaultEntry[]> {
+  return safeInvoke<VaultEntry[]>('vault_list');
+}
+
+export async function vaultRemove(id: number): Promise<void> {
+  return safeInvoke<void>('vault_remove', { id });
+}
+
+// ===================== 敏感文件扫描 (S2) =====================
+
+export interface SensitiveMatch {
+  file_path: string;
+  file_name: string;
+  match_type: string;
+  match_count: number;
+  sample: string;
+}
+
+export async function scanSensitiveFiles(path: string): Promise<SensitiveMatch[]> {
+  return safeInvoke<SensitiveMatch[]>('scan_sensitive_files', { path });
+}
+
+// ===================== 审计导出 (S3) =====================
+
+export async function exportAuditCsv(savePath: string): Promise<string> {
+  return safeInvoke<string>('export_audit_csv', { savePath });
+}
+
+export async function exportAuditJson(savePath: string): Promise<string> {
+  return safeInvoke<string>('export_audit_json', { savePath });
+}
+
+// ===================== 完整性校验 (S4) =====================
+
+export interface IntegrityEntry {
+  path: string;
+  name: string;
+  status: string;
+  baseline_hash: string;
+  current_hash: string;
+}
+
+export async function createIntegrityBaseline(path: string): Promise<string> {
+  return safeInvoke<string>('create_integrity_baseline', { path });
+}
+
+export async function checkIntegrity(path: string): Promise<IntegrityEntry[]> {
+  return safeInvoke<IntegrityEntry[]>('check_integrity', { path });
+}
+
+// ===================== 目录保护 (S5) =====================
+
+export async function addProtectedDir(path: string): Promise<void> {
+  return safeInvoke<void>('add_protected_dir', { path });
+}
+
+export async function removeProtectedDir(path: string): Promise<void> {
+  return safeInvoke<void>('remove_protected_dir', { path });
+}
+
+export async function listProtectedDirs(): Promise<string[]> {
+  return safeInvoke<string[]>('list_protected_dirs');
+}
+
+export async function isPathProtected(path: string): Promise<boolean> {
+  return safeInvoke<boolean>('is_path_protected', { path });
+}
+
 // ===================== 文件打开 =====================
 
 /** 用资源管理器打开文件所在目录 */

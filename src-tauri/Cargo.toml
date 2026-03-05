@@ -61,6 +61,12 @@ keyring          = "3"
 rand             = "0.8"
 hex              = "0.4"
 
+# Regex (sensitive data detection)
+regex            = "1"
+
+# CSV export (audit logs)
+csv              = "1"
+
 # UUID for snapshots
 uuid             = { version = "1", features = ["v4"] }
 

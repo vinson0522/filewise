@@ -78,7 +78,8 @@ export type PageKey =
   | 'report'
   | 'settings'
   | 'help'
-  | 'changelog';
+  | 'changelog'
+  | 'security';
 
 export type FileCategory =
   | 'document'

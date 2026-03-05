@@ -4,7 +4,7 @@ import {
   DashboardOutlined, AppstoreOutlined, ClearOutlined,
   SearchOutlined, MessageOutlined, BarChartOutlined,
   SettingOutlined, FolderOpenOutlined, BellOutlined,
-  QuestionCircleOutlined, UserOutlined,
+  QuestionCircleOutlined, UserOutlined, SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useAppStore } from '../../stores/useAppStore';
 import { checkUpdate } from '../../services/file.service';
@@ -19,6 +19,7 @@ import ReportPage     from '../../pages/ReportPage';
 import SettingsPage   from '../../pages/SettingsPage';
 import HelpPage       from '../../pages/HelpPage';
 import ChangelogPage  from '../../pages/ChangelogPage';
+import SecurityPage  from '../../pages/SecurityPage';
 import '../../styles/app-shell.css';
 
 interface NavItem {
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'chat',      label: 'AI 助手', icon: <MessageOutlined />,   section: '主要' },
   { key: 'report',    label: '操作报告', icon: <BarChartOutlined />,  section: '工具' },
   { key: 'settings',  label: '系统设置', icon: <SettingOutlined />,   section: '工具' },
+  { key: 'security',  label: '安全中心', icon: <SafetyCertificateOutlined />, section: '工具' },
   { key: 'help',      label: '帮助中心', icon: <QuestionCircleOutlined />, section: '工具' },
   { key: 'changelog', label: '版本中心', icon: <BarChartOutlined />,  section: '工具' },
 ];
@@ -50,6 +52,7 @@ const PAGE_MAP: Record<PageKey, React.ReactNode> = {
   settings:  <SettingsPage />,
   help:      <HelpPage />,
   changelog: <ChangelogPage />,
+  security:  <SecurityPage />,
 };
 
 export default function AppShell() {
