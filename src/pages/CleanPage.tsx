@@ -28,12 +28,12 @@ export default function CleanPage() {
     try {
       const r = await quarantineFile(path);
       message.success(r.message);
-      qc.invalidateQueries({ queryKey: ['dup-groups', dupRoot] });
-      qc.invalidateQueries({ queryKey: ['large-files', largeRoot] });
-      qc.invalidateQueries({ queryKey: ['quarantine'] });
-      qc.invalidateQueries({ queryKey: ['clean-targets'] });
-      qc.invalidateQueries({ queryKey: ['health-score'] });
-      qc.invalidateQueries({ queryKey: ['disk-info'] });
+      qc.refetchQueries({ queryKey: ['dup-groups', dupRoot] });
+      qc.refetchQueries({ queryKey: ['large-files', largeRoot] });
+      qc.refetchQueries({ queryKey: ['quarantine'] });
+      qc.refetchQueries({ queryKey: ['clean-targets'] });
+      qc.refetchQueries({ queryKey: ['health-score'] });
+      qc.refetchQueries({ queryKey: ['disk-info'] });
     } catch (e) {
       message.error('隔离失败：' + String(e));
     } finally {
@@ -57,12 +57,17 @@ export default function CleanPage() {
   const cleanMutation = useMutation({
     mutationFn: (paths: string[]) => executeClean(paths),
     onSuccess: (result) => {
-      message.success(`清理完成，释放 ${formatSize(result.freed_bytes)}，共 ${result.deleted_count} 个文件`);
-      qc.invalidateQueries({ queryKey: ['clean-targets'] });
-      qc.invalidateQueries({ queryKey: ['health-score'] });
-      qc.invalidateQueries({ queryKey: ['disk-info'] });
-      qc.invalidateQueries({ queryKey: ['index-stats'] });
+      if (result.failed.length > 0) {
+        message.warning(`清理完成，释放 ${formatSize(result.freed_bytes)}，删除 ${result.deleted_count} 个文件，${result.failed.length} 个文件被系统占用无法删除`);
+      } else {
+        message.success(`清理完成，释放 ${formatSize(result.freed_bytes)}，共 ${result.deleted_count} 个文件`);
+      }
       setChecked({});
+      // 强制立即重新拉取所有相关数据
+      qc.refetchQueries({ queryKey: ['clean-targets'] });
+      qc.refetchQueries({ queryKey: ['health-score'] });
+      qc.refetchQueries({ queryKey: ['disk-info'] });
+      qc.refetchQueries({ queryKey: ['index-stats'] });
     },
     onError: (err: Error) => message.error('清理失败：' + err.message),
   });

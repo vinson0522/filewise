@@ -82,10 +82,10 @@ export default function SearchPage() {
     try {
       const r = await quarantineFile(path);
       message.success(r.message);
-      qc.invalidateQueries({ queryKey: ['search', submitted] });
-      qc.invalidateQueries({ queryKey: ['quarantine'] });
-      qc.invalidateQueries({ queryKey: ['health-score'] });
-      qc.invalidateQueries({ queryKey: ['disk-info'] });
+      qc.refetchQueries({ queryKey: ['search', submitted] });
+      qc.refetchQueries({ queryKey: ['quarantine'] });
+      qc.refetchQueries({ queryKey: ['health-score'] });
+      qc.refetchQueries({ queryKey: ['disk-info'] });
     } catch (e) { message.error('隔离失败：' + String(e)); }
   }
 
