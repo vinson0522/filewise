@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button, Checkbox, Tag, Tabs, message, Spin } from 'antd';
 import { DeleteOutlined, FileOutlined, ScanOutlined, ReloadOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -71,6 +71,13 @@ export default function CleanPage() {
     },
     onError: (err: Error) => message.error('清理失败：' + err.message),
   });
+
+  // Auto-select safe items on first load
+  useEffect(() => {
+    if (targets.length > 0 && Object.keys(checked).length === 0) {
+      setChecked(Object.fromEntries(targets.filter(t => t.level === 'safe').map(t => [t.path, true])));
+    }
+  }, [targets]);
 
   function toggle(name: string) { setChecked(p => ({ ...p, [name]: !p[name] })); }
   function selectAllSafe() {

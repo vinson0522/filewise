@@ -29,17 +29,20 @@ interface NavItem {
   section: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { key: 'dashboard', label: '概览',    icon: <DashboardOutlined />, section: '主要' },
-  { key: 'organize',  label: '智能整理', icon: <AppstoreOutlined />,  section: '主要' },
-  { key: 'clean',     label: '智能清理', icon: <ClearOutlined />,     section: '主要' },
-  { key: 'search',    label: '智能搜索', icon: <SearchOutlined />,    section: '主要' },
-  { key: 'chat',      label: 'AI 助手', icon: <MessageOutlined />,   section: '主要' },
-  { key: 'report',    label: '操作报告', icon: <BarChartOutlined />,  section: '工具' },
-  { key: 'settings',  label: '系统设置', icon: <SettingOutlined />,   section: '工具' },
-  { key: 'security',  label: '安全中心', icon: <SafetyCertificateOutlined />, section: '工具' },
-  { key: 'help',      label: '帮助中心', icon: <QuestionCircleOutlined />, section: '工具' },
-  { key: 'changelog', label: '版本中心', icon: <BarChartOutlined />,  section: '工具' },
+const NAV_MAIN: NavItem[] = [
+  { key: 'dashboard', label: '概览',    icon: <DashboardOutlined />, section: '' },
+  { key: 'organize',  label: '智能整理', icon: <AppstoreOutlined />,  section: '' },
+  { key: 'clean',     label: '智能清理', icon: <ClearOutlined />,     section: '' },
+  { key: 'search',    label: '智能搜索', icon: <SearchOutlined />,    section: '' },
+  { key: 'chat',      label: 'AI 助手', icon: <MessageOutlined />,   section: '' },
+];
+
+const NAV_MORE: NavItem[] = [
+  { key: 'report',    label: '操作报告', icon: <BarChartOutlined />,  section: '' },
+  { key: 'security',  label: '安全中心', icon: <SafetyCertificateOutlined />, section: '' },
+  { key: 'settings',  label: '系统设置', icon: <SettingOutlined />,   section: '' },
+  { key: 'help',      label: '帮助',    icon: <QuestionCircleOutlined />, section: '' },
+  { key: 'changelog', label: '版本',    icon: <BarChartOutlined />,  section: '' },
 ];
 
 const PAGE_MAP: Record<PageKey, React.ReactNode> = {
@@ -58,13 +61,22 @@ const PAGE_MAP: Record<PageKey, React.ReactNode> = {
 export default function AppShell() {
   const { currentPage, setCurrentPage } = useAppStore();
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  let lastSection = '';
+  const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     checkUpdate()
       .then(info => setUpdateInfo(info))
       .catch(() => {});
   }, []);
+
+  const renderNavItem = (item: NavItem) => (
+    <div key={item.key}
+      className={`nav-item${currentPage === item.key ? ' active' : ''}`}
+      onClick={() => setCurrentPage(item.key)}>
+      {item.icon}
+      <span>{item.label}</span>
+    </div>
+  );
 
   return (
     <div className="app-layout">
@@ -96,24 +108,16 @@ export default function AppShell() {
       <div className="app-body">
         {/* Sidebar */}
         <aside className="app-sider">
-          {NAV_ITEMS.map((item) => {
-            const showSection = item.section !== lastSection;
-            if (showSection) lastSection = item.section;
-            return (
-              <div key={item.key}>
-                {showSection && (
-                  <div className="nav-section">{item.section}</div>
-                )}
-                <div
-                  className={`nav-item${currentPage === item.key ? ' active' : ''}`}
-                  onClick={() => setCurrentPage(item.key)}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </div>
-              </div>
-            );
-          })}
+          <div className="nav-sider-main">
+            {NAV_MAIN.map(renderNavItem)}
+          </div>
+          <div className="nav-sider-more">
+            <div className="nav-section" style={{ cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => setShowMore(!showMore)}>
+              {showMore ? '收起 ▴' : '更多 ▾'}
+            </div>
+            {showMore && NAV_MORE.map(renderNavItem)}
+          </div>
         </aside>
 
         {/* Content */}
