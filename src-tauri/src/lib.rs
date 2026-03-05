@@ -107,6 +107,9 @@ pub fn run() {
             get_settings,
             save_settings,
             check_update,
+            has_password,
+            set_password,
+            verify_password,
             // audit log
             list_audit_log,
             get_health_score,

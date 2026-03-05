@@ -1,7 +1,10 @@
+import { useState, useEffect } from 'react';
 import { ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppShell from './components/common/AppShell';
+import LockScreen from './components/common/LockScreen';
+import { hasPassword } from './services/file.service';
 import './App.css';
 
 const queryClient = new QueryClient({
@@ -11,6 +14,14 @@ const queryClient = new QueryClient({
 });
 
 function App() {
+  const [locked, setLocked] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    hasPassword()
+      .then(has => setLocked(has))
+      .catch(() => setLocked(false));
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ConfigProvider
@@ -25,7 +36,11 @@ function App() {
           },
         }}
       >
-        <AppShell />
+        {locked === null ? null : locked ? (
+          <LockScreen onUnlock={() => setLocked(false)} />
+        ) : (
+          <AppShell />
+        )}
       </ConfigProvider>
     </QueryClientProvider>
   );

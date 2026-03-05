@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button, Select, Switch, message, Spin, Input, Tag } from 'antd';
-import { PlusOutlined, DeleteOutlined, SaveOutlined, EyeInvisibleOutlined, EyeOutlined, DesktopOutlined, CloudOutlined, FolderOpenOutlined } from '@ant-design/icons';
-import { getSettings, saveSettings, listOllamaModels, pickFolder } from '../services/file.service';
+import { PlusOutlined, DeleteOutlined, SaveOutlined, EyeInvisibleOutlined, EyeOutlined, DesktopOutlined, CloudOutlined, FolderOpenOutlined, LockOutlined } from '@ant-design/icons';
+import { getSettings, saveSettings, listOllamaModels, pickFolder, hasPassword, setPassword } from '../services/file.service';
 import type { AppSettings, OllamaModel } from '../services/file.service';
 
 const DEFAULT: AppSettings = {
@@ -26,6 +26,75 @@ const CLOUD_PROVIDERS = [
   { value: 'zhipu', label: '智谱 (GLM)' },
   { value: 'openai', label: 'OpenAI' },
 ];
+
+function PasswordSection() {
+  const [hasPwd, setHasPwd] = useState<boolean | null>(null);
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    hasPassword().then(v => setHasPwd(v)).catch(() => setHasPwd(false));
+  }, []);
+
+  async function handleSetPassword() {
+    if (!newPwd.trim()) { message.warning('请输入密码'); return; }
+    if (newPwd.length < 4) { message.warning('密码至少 4 位'); return; }
+    if (newPwd !== confirmPwd) { message.warning('两次密码不一致'); return; }
+    setSaving(true);
+    try {
+      await setPassword(newPwd);
+      message.success(hasPwd ? '密码已修改' : '密码已设置，下次启动生效');
+      setHasPwd(true);
+      setNewPwd('');
+      setConfirmPwd('');
+    } catch { message.error('设置失败'); }
+    finally { setSaving(false); }
+  }
+
+  async function handleRemovePassword() {
+    setSaving(true);
+    try {
+      await setPassword('');
+      message.success('密码已移除');
+      setHasPwd(false);
+    } catch { message.error('操作失败'); }
+    finally { setSaving(false); }
+  }
+
+  if (hasPwd === null) return null;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
+        <div>
+          <div style={{ fontSize: 14, color: '#595959' }}>启动密码</div>
+          <div style={{ fontSize: 12, color: '#bfbfbf', marginTop: 2 }}>
+            {hasPwd ? '已设置 — 每次启动需要输入密码' : '未设置 — 点击右侧设置密码保护应用'}
+          </div>
+        </div>
+        <Tag color={hasPwd ? 'green' : 'default'}>{hasPwd ? '已开启' : '未开启'}</Tag>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
+        <Input.Password size="small" prefix={<LockOutlined />} placeholder={hasPwd ? '输入新密码' : '设置密码（至少4位）'}
+          value={newPwd} onChange={e => setNewPwd(e.target.value)} style={{ width: 280 }} />
+        <Input.Password size="small" prefix={<LockOutlined />} placeholder="确认密码"
+          value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} style={{ width: 280 }}
+          onPressEnter={handleSetPassword} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button type="primary" size="small" loading={saving} onClick={handleSetPassword}>
+            {hasPwd ? '修改密码' : '设置密码'}
+          </Button>
+          {hasPwd && (
+            <Button size="small" danger loading={saving} onClick={handleRemovePassword}>
+              移除密码
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const [cfg, setCfg] = useState<AppSettings>(DEFAULT);
@@ -277,6 +346,14 @@ export default function SettingsPage() {
               <Button type="primary" size="small" icon={<SaveOutlined />}
                 loading={saving} onClick={handleSave}>保存设置</Button>
             </div>
+          </div>
+        </div>
+
+        {/* Security */}
+        <div className="section-card">
+          <div className="section-card-header"><h3><LockOutlined /> 安全设置</h3></div>
+          <div className="section-card-body">
+            <PasswordSection />
           </div>
         </div>
       </div>

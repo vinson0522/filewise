@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
+use rusqlite::OptionalExtension;
 use crate::state::AppState;
 
 // ——————————————————————————————————————————————
@@ -316,4 +317,65 @@ pub async fn save_settings(
         rusqlite::params![json],
     ).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// ——————————————————————————————————————————————
+// 本地认证（密码锁）
+// ——————————————————————————————————————————————
+
+fn hash_password(password: &str) -> String {
+    let hash = blake3::hash(password.as_bytes());
+    hash.to_hex().to_string()
+}
+
+/// IPC: 检查是否已设置密码
+#[tauri::command]
+pub async fn has_password(state: State<'_, AppState>) -> Result<bool, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let exists: bool = db.query_row(
+        "SELECT COUNT(*) > 0 FROM settings WHERE key = 'app_password'",
+        [],
+        |row| row.get(0),
+    ).map_err(|e| e.to_string())?;
+    Ok(exists)
+}
+
+/// IPC: 设置或修改密码（传空字符串则清除密码）
+#[tauri::command]
+pub async fn set_password(
+    password: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    if password.is_empty() {
+        db.execute("DELETE FROM settings WHERE key = 'app_password'", [])
+            .map_err(|e| e.to_string())?;
+    } else {
+        let hashed = hash_password(&password);
+        db.execute(
+            "INSERT INTO settings (key, value) VALUES ('app_password', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            rusqlite::params![hashed],
+        ).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// IPC: 验证密码
+#[tauri::command]
+pub async fn verify_password(
+    password: String,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let stored: Option<String> = db.query_row(
+        "SELECT value FROM settings WHERE key = 'app_password'",
+        [],
+        |row| row.get(0),
+    ).optional().map_err(|e| e.to_string())?;
+
+    match stored {
+        Some(hash) => Ok(hash == hash_password(&password)),
+        None => Ok(true), // 未设密码视为验证通过
+    }
 }

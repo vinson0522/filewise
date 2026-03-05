@@ -305,6 +305,20 @@ export async function checkUpdate(): Promise<UpdateInfo> {
   return safeInvoke<UpdateInfo>('check_update');
 }
 
+// ===================== 本地认证 =====================
+
+export async function hasPassword(): Promise<boolean> {
+  return safeInvoke<boolean>('has_password');
+}
+
+export async function setPassword(password: string): Promise<void> {
+  return safeInvoke<void>('set_password', { password });
+}
+
+export async function verifyPassword(password: string): Promise<boolean> {
+  return safeInvoke<boolean>('verify_password', { password });
+}
+
 // ===================== 文件打开 =====================
 
 /** 用资源管理器打开文件所在目录 */
