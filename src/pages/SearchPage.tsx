@@ -84,6 +84,8 @@ export default function SearchPage() {
       message.success(r.message);
       qc.invalidateQueries({ queryKey: ['search', submitted] });
       qc.invalidateQueries({ queryKey: ['quarantine'] });
+      qc.invalidateQueries({ queryKey: ['health-score'] });
+      qc.invalidateQueries({ queryKey: ['disk-info'] });
     } catch (e) { message.error('隔离失败：' + String(e)); }
   }
 

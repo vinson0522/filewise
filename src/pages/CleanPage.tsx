@@ -31,6 +31,9 @@ export default function CleanPage() {
       qc.invalidateQueries({ queryKey: ['dup-groups', dupRoot] });
       qc.invalidateQueries({ queryKey: ['large-files', largeRoot] });
       qc.invalidateQueries({ queryKey: ['quarantine'] });
+      qc.invalidateQueries({ queryKey: ['clean-targets'] });
+      qc.invalidateQueries({ queryKey: ['health-score'] });
+      qc.invalidateQueries({ queryKey: ['disk-info'] });
     } catch (e) {
       message.error('隔离失败：' + String(e));
     } finally {
@@ -56,6 +59,9 @@ export default function CleanPage() {
     onSuccess: (result) => {
       message.success(`清理完成，释放 ${formatSize(result.freed_bytes)}，共 ${result.deleted_count} 个文件`);
       qc.invalidateQueries({ queryKey: ['clean-targets'] });
+      qc.invalidateQueries({ queryKey: ['health-score'] });
+      qc.invalidateQueries({ queryKey: ['disk-info'] });
+      qc.invalidateQueries({ queryKey: ['index-stats'] });
       setChecked({});
     },
     onError: (err: Error) => message.error('清理失败：' + err.message),
