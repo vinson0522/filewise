@@ -42,11 +42,11 @@ export default function OrganizePage() {
   const [strategy, setStrategy] = useState('type');
   const [items, setItems] = useState<OrganizeItem[]>([]);
   const [scanning, setScanning] = useState(false);
-  const [outputBase, setOutputBase] = useState('C:\\Users\\Organized');
+  const [outputBase, setOutputBase] = useState('');
 
   async function handleScan() {
     if (!scanPath.trim()) {
-      message.warning('请输入要扫描的目录路径');
+      message.warning('请先选择要扫描的目录');
       return;
     }
     setScanning(true);
@@ -130,7 +130,7 @@ export default function OrganizePage() {
               {outputBase ? '更换' : '选择目录'}
             </Button>
             <Button type="primary" icon={<ThunderboltOutlined />}
-              loading={scanning} onClick={handleScan}>开始扫描</Button>
+              loading={scanning} disabled={!scanPath || !outputBase} onClick={handleScan}>开始扫描</Button>
           </div>
         </div>
       </div>
@@ -199,7 +199,7 @@ export default function OrganizePage() {
       ) : (
         <div style={{ textAlign: 'center', padding: '60px 0', color: '#bfbfbf' }}>
           <ThunderboltOutlined style={{ fontSize: 40, display: 'block', marginBottom: 10 }} />
-          <p style={{ fontSize: 14 }}>输入目录路径，点击「开始扫描」</p>
+          <p style={{ fontSize: 14 }}>选择扫描目录和输出目录，点击「开始扫描」</p>
         </div>
       )}
 

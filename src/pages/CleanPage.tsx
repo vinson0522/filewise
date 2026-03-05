@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Checkbox, Tag, Tabs, message, Spin, Select } from 'antd';
+import { Button, Checkbox, Tag, Tabs, message, Spin } from 'antd';
 import { DeleteOutlined, FileOutlined, ScanOutlined, ReloadOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -15,14 +15,12 @@ const LEVEL_STYLE: Record<string, React.CSSProperties> = {
 };
 const LEVEL_LABEL: Record<string, string> = { safe: '安全', warn: '谨慎' };
 
-const SCAN_ROOTS = ['C:\\', 'D:\\', 'E:\\'];
-
 export default function CleanPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState('system');
   const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [dupRoot, setDupRoot] = useState('C:\\Users');
-  const [largeRoot, setLargeRoot] = useState('C:\\Users');
+  const [dupRoot, setDupRoot] = useState('');
+  const [largeRoot, setLargeRoot] = useState('');
   const [quarantining, setQuarantining] = useState<string | null>(null);
 
   async function handleQuarantine(path: string) {
@@ -155,12 +153,13 @@ export default function CleanPage() {
           <div className="section-card-header">
             <h3>重复文件组</h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <Select value={dupRoot} onChange={setDupRoot} style={{ width: 120 }}
-                options={SCAN_ROOTS.map(r => ({ value: r, label: r }))} />
               <Button size="small" icon={<FolderOpenOutlined />}
-                onClick={async () => { const p = await pickFolder(); if (p) setDupRoot(p); }}>浏览</Button>
+                onClick={async () => { const p = await pickFolder(); if (p) setDupRoot(p); }}>
+                {dupRoot ? '更换目录' : '选择目录'}
+              </Button>
+              {dupRoot && <Tag style={{ fontFamily: 'monospace', margin: 0 }}>{dupRoot}</Tag>}
               <Button type="primary" size="small" icon={<ScanOutlined />}
-                loading={scanningDups} onClick={() => refetchDups()}>开始扫描</Button>
+                loading={scanningDups} disabled={!dupRoot} onClick={() => refetchDups()}>开始扫描</Button>
             </div>
           </div>
           <div style={{ padding: '12px 20px' }}>
@@ -200,12 +199,13 @@ export default function CleanPage() {
           <div className="section-card-header">
             <h3>大文件（&gt; 100 MB）</h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <Select value={largeRoot} onChange={setLargeRoot} style={{ width: 120 }}
-                options={SCAN_ROOTS.map(r => ({ value: r, label: r }))} />
               <Button size="small" icon={<FolderOpenOutlined />}
-                onClick={async () => { const p = await pickFolder(); if (p) setLargeRoot(p); }}>浏览</Button>
+                onClick={async () => { const p = await pickFolder(); if (p) setLargeRoot(p); }}>
+                {largeRoot ? '更换目录' : '选择目录'}
+              </Button>
+              {largeRoot && <Tag style={{ fontFamily: 'monospace', margin: 0 }}>{largeRoot}</Tag>}
               <Button type="primary" size="small" icon={<ScanOutlined />}
-                loading={scanningLarge} onClick={() => refetchLarge()}>开始扫描</Button>
+                loading={scanningLarge} disabled={!largeRoot} onClick={() => refetchLarge()}>开始扫描</Button>
               {largeFiles.length > 0 &&
                 <span style={{ fontSize: 13, color: '#8c8c8c' }}>共 {largeFiles.length} 个</span>}
             </div>

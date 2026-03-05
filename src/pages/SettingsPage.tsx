@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button, Select, Switch, message, Spin, Input, Tag } from 'antd';
 import { DeleteOutlined, SaveOutlined, EyeInvisibleOutlined, EyeOutlined, DesktopOutlined, CloudOutlined, FolderOpenOutlined, LockOutlined } from '@ant-design/icons';
 import { getSettings, saveSettings, listOllamaModels, pickFolder, hasPassword, setPassword } from '../services/file.service';
@@ -99,30 +99,38 @@ function PasswordSection() {
 export default function SettingsPage() {
   const [cfg, setCfg] = useState<AppSettings>(DEFAULT);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialLoadRef = useRef(true);
 
   useEffect(() => {
-    getSettings().then(s => { setCfg(s); setLoading(false); })
+    getSettings().then(s => { setCfg(s); setLoading(false); setTimeout(() => { initialLoadRef.current = false; }, 100); })
       .catch(() => setLoading(false));
     listOllamaModels().then(setOllamaModels).catch(() => setOllamaModels([]));
   }, []);
 
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await saveSettings(cfg);
-      message.success('设置已保存');
-    } catch (e) {
-      message.error('保存失败：' + String(e));
-    } finally {
-      setSaving(false);
-    }
-  }
+  const autoSave = useCallback((newCfg: AppSettings) => {
+    if (initialLoadRef.current) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      try {
+        await saveSettings(newCfg);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
+      } catch (e) {
+        message.error('保存失败：' + String(e));
+      }
+    }, 800);
+  }, []);
 
   function set<K extends keyof AppSettings>(k: K, v: AppSettings[K]) {
-    setCfg(prev => ({ ...prev, [k]: v }));
+    setCfg(prev => {
+      const next = { ...prev, [k]: v };
+      autoSave(next);
+      return next;
+    });
   }
 
 
@@ -323,8 +331,7 @@ export default function SettingsPage() {
             {row('最小化到托盘', null, <Switch checked={toTray} onChange={setToTray} />)}
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 13, color: '#8c8c8c' }}>FileWise v1.4.0</span>
-              <Button type="primary" size="small" icon={<SaveOutlined />}
-                loading={saving} onClick={handleSave}>保存设置</Button>
+              {saved && <span style={{ fontSize: 12, color: '#52c41a' }}><SaveOutlined /> 已自动保存</span>}
             </div>
           </div>
         </div>

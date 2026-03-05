@@ -186,6 +186,7 @@ export default function SearchPage() {
             type={watchActive ? 'default' : 'dashed'}
             danger={watchActive}
             size="small"
+            disabled={!scanRoot && !watchActive}
             onClick={handleWatch}>
             {watchActive ? '停止监听' : '开始监听'}
           </Button>
