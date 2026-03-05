@@ -6,7 +6,7 @@ import {
   SearchOutlined, MessageOutlined, BarChartOutlined,
   SettingOutlined, FolderOpenOutlined, BellOutlined,
   QuestionCircleOutlined, LockOutlined, SafetyCertificateOutlined,
-  PictureOutlined,
+  PictureOutlined, SunOutlined, MoonOutlined,
 } from '@ant-design/icons';
 import { useAppStore } from '../../stores/useAppStore';
 import { checkUpdate, hasPassword } from '../../services/file.service';
@@ -66,7 +66,7 @@ const PAGE_MAP: Record<PageKey, React.ReactNode> = {
 const TOUR_KEY = 'filewise_tour_done';
 
 export default function AppShell() {
-  const { currentPage, setCurrentPage, requestTour, setRequestTour, setLockRequested } = useAppStore();
+  const { currentPage, setCurrentPage, requestTour, setRequestTour, setLockRequested, themeMode, toggleTheme } = useAppStore();
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [showMore, setShowMore] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
@@ -168,6 +168,11 @@ export default function AppShell() {
           <Tooltip title="帮助">
             <Button type="text" size="small" icon={<QuestionCircleOutlined />}
               onClick={() => setCurrentPage('help')} />
+          </Tooltip>
+          <Tooltip title={themeMode === 'dark' ? '切换亮色模式' : '切换暗色模式'}>
+            <button className="theme-toggle" onClick={toggleTheme}>
+              {themeMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+            </button>
           </Tooltip>
           {hasPwd && (<>
             <div className="header-divider" />

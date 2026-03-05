@@ -16,7 +16,12 @@ const queryClient = new QueryClient({
 
 function App() {
   const [locked, setLocked] = useState<boolean | null>(null);
-  const { lockRequested, setLockRequested } = useAppStore();
+  const { lockRequested, setLockRequested, themeMode } = useAppStore();
+
+  // Set data-theme attribute on mount
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', themeMode);
+  }, [themeMode]);
 
   useEffect(() => {
     hasPassword()
@@ -31,17 +36,26 @@ function App() {
     }
   }, [lockRequested, setLockRequested]);
 
+  const isDark = themeMode === 'dark';
+
   return (
     <QueryClientProvider client={queryClient}>
       <ConfigProvider
         locale={zhCN}
         theme={{
-          algorithm: theme.defaultAlgorithm,
+          algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
           token: {
-            colorPrimary: '#1677ff',
+            colorPrimary: '#5b5bd6',
             borderRadius: 6,
             fontFamily:
-              "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+              "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif",
+            ...(isDark ? {
+              colorBgContainer: '#19191c',
+              colorBgElevated: '#232326',
+              colorBorder: '#2c2c30',
+              colorText: '#ececee',
+              colorTextSecondary: '#8b8d98',
+            } : {}),
           },
         }}
       >

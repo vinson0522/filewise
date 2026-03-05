@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { PageKey, ChatMessage } from '../types';
 
+type ThemeMode = 'light' | 'dark';
+
 interface AppState {
   // 当前页面
   currentPage: PageKey;
@@ -26,6 +28,11 @@ interface AppState {
   // 锁屏请求
   lockRequested: boolean;
   setLockRequested: (v: boolean) => void;
+
+  // 主题
+  themeMode: ThemeMode;
+  toggleTheme: () => void;
+  setThemeMode: (mode: ThemeMode) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -54,4 +61,18 @@ export const useAppStore = create<AppState>((set) => ({
 
   lockRequested: false,
   setLockRequested: (v) => set({ lockRequested: v }),
+
+  themeMode: (localStorage.getItem('filewise_theme') as ThemeMode) || 'light',
+  toggleTheme: () =>
+    set((s) => {
+      const next = s.themeMode === 'light' ? 'dark' : 'light';
+      localStorage.setItem('filewise_theme', next);
+      document.documentElement.setAttribute('data-theme', next);
+      return { themeMode: next };
+    }),
+  setThemeMode: (mode) => {
+    localStorage.setItem('filewise_theme', mode);
+    document.documentElement.setAttribute('data-theme', mode);
+    set({ themeMode: mode });
+  },
 }));
