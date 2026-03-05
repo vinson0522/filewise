@@ -196,8 +196,8 @@ export default function AppShell() {
       </nav>
 
       {/* ── Column 3: Main Content ── */}
-      <main className="content" ref={refContent}>
-        <div ref={refHero}>
+      <main className={`content${currentPage === 'chat' ? ' content--chat' : ''}`} ref={refContent}>
+        <div ref={refHero} style={{ height: '100%' }}>
           {PAGE_MAP[currentPage]}
         </div>
       </main>
