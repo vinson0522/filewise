@@ -4,6 +4,8 @@ import {
   AppstoreOutlined, ClearOutlined, CopyOutlined, DeleteOutlined,
   CheckCircleFilled, WarningFilled, CloseCircleFilled,
   ThunderboltOutlined, SearchOutlined,
+  FolderOutlined, UndoOutlined, ExclamationCircleOutlined,
+  DatabaseOutlined, FileOutlined,
 } from '@ant-design/icons';
 import { useState, useCallback } from 'react';
 import {
@@ -327,11 +329,15 @@ export default function DashboardPage() {
             ) : recentLogs.slice(0, 6).map((r) => {
               const iconBg: Record<string, string> = { move: '#dbeafe', clean: '#dcfce7', quarantine: '#fef3c7', index: '#f3e8ff', restore: '#ccfbf1' };
               const iconFg: Record<string, string> = { move: '#2563eb', clean: '#16a34a', quarantine: '#d97706', index: '#7c3aed', restore: '#0d9488' };
-              const iconSymbol: Record<string, string> = { move: '📁', clean: '🧹', quarantine: '⚠️', index: '🗂️', restore: '↩️' };
+              const iconMap: Record<string, React.ReactNode> = {
+                move: <FolderOutlined />, clean: <ClearOutlined />,
+                quarantine: <ExclamationCircleOutlined />, index: <DatabaseOutlined />,
+                restore: <UndoOutlined />,
+              };
               return (
                 <div key={r.id} className="activity-row">
                   <div className="activity-icon-wrap" style={{ background: iconBg[r.action] ?? '#f1f5f9', color: iconFg[r.action] ?? '#64748b' }}>
-                    <span style={{ fontSize: 14 }}>{iconSymbol[r.action] ?? '📄'}</span>
+                    {iconMap[r.action] ?? <FileOutlined />}
                   </div>
                   <div className="activity-text">
                     <p className="activity-name">{r.path?.split(/[\\/]/).pop() ?? r.detail}</p>
