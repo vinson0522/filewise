@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Tabs } from 'antd';
+import { Tabs, Button } from 'antd';
 import {
   BookOutlined, FileProtectOutlined, LockOutlined,
   DesktopOutlined, SearchOutlined, DeleteOutlined,
   FolderOpenOutlined, RobotOutlined, DashboardOutlined,
-  SafetyOutlined,
+  SafetyOutlined, CompassOutlined,
 } from '@ant-design/icons';
+import { useAppStore } from '../stores/useAppStore';
 
 const sectionStyle: React.CSSProperties = { fontSize: 14, lineHeight: 2, color: '#595959' };
 const h3Style: React.CSSProperties = { fontSize: 16, fontWeight: 600, color: '#262626', margin: '20px 0 8px' };
@@ -150,12 +151,20 @@ function PrivacyPolicy() {
 
 export default function HelpPage() {
   const [activeTab, setActiveTab] = useState('guide');
+  const { setCurrentPage, setRequestTour } = useAppStore();
 
   return (
     <div>
-      <div className="page-header">
-        <h2>帮助中心</h2>
-        <p>使用说明、用户协议与隐私政策</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h2>帮助中心</h2>
+          <p>使用说明、用户协议与隐私政策</p>
+        </div>
+        <Button icon={<CompassOutlined />} onClick={() => {
+          localStorage.removeItem('filewise_tour_done');
+          setCurrentPage('dashboard');
+          setTimeout(() => setRequestTour(true), 400);
+        }}>重新查看引导</Button>
       </div>
 
       <div className="section-card">

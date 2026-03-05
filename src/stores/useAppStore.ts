@@ -18,6 +18,10 @@ interface AppState {
   // 当前选中路径
   selectedPath: string;
   setSelectedPath: (path: string) => void;
+
+  // 新手引导
+  requestTour: boolean;
+  setRequestTour: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -40,4 +44,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   selectedPath: '',
   setSelectedPath: (path) => set({ selectedPath: path }),
+
+  requestTour: false,
+  setRequestTour: (v) => set({ requestTour: v }),
 }));

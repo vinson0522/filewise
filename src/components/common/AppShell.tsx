@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Badge, Button, Tooltip } from 'antd';
+import { useState, useEffect, useRef } from 'react';
+import { Badge, Button, Tooltip, Tour } from 'antd';
+import type { TourProps } from 'antd';
 import {
   DashboardOutlined, AppstoreOutlined, ClearOutlined,
   SearchOutlined, MessageOutlined, BarChartOutlined,
@@ -58,16 +59,81 @@ const PAGE_MAP: Record<PageKey, React.ReactNode> = {
   security:  <SecurityPage />,
 };
 
+const TOUR_KEY = 'filewise_tour_done';
+
 export default function AppShell() {
-  const { currentPage, setCurrentPage } = useAppStore();
+  const { currentPage, setCurrentPage, requestTour, setRequestTour } = useAppStore();
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [showMore, setShowMore] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+
+  const refHero = useRef<HTMLDivElement>(null);
+  const refNav = useRef<HTMLDivElement>(null);
+  const refMore = useRef<HTMLDivElement>(null);
+  const refHeader = useRef<HTMLDivElement>(null);
+  const refContent = useRef<HTMLElement>(null);
 
   useEffect(() => {
     checkUpdate()
       .then(info => setUpdateInfo(info))
       .catch(() => {});
+    // Show tour on first visit
+    if (!localStorage.getItem(TOUR_KEY)) {
+      const timer = setTimeout(() => setTourOpen(true), 600);
+      return () => clearTimeout(timer);
+    }
   }, []);
+
+  // React to tour replay request from HelpPage
+  useEffect(() => {
+    if (requestTour) {
+      setTourOpen(true);
+      setRequestTour(false);
+    }
+  }, [requestTour, setRequestTour]);
+
+  const tourSteps: TourProps['steps'] = [
+    {
+      title: '欢迎使用 FileWise！',
+      description: '让我带你快速了解主要功能，只需 30 秒。',
+      target: null,
+    },
+    {
+      title: '一键体检',
+      description: '点击这里全面检测系统健康状态，包括磁盘空间、可清理项、文件索引和健康评分。',
+      target: () => refHero.current!,
+      placement: 'bottom',
+    },
+    {
+      title: '核心功能导航',
+      description: '在这里切换主要功能：智能整理、智能清理、智能搜索和 AI 助手。',
+      target: () => refNav.current!,
+      placement: 'right',
+    },
+    {
+      title: '更多工具',
+      description: '展开查看操作报告、安全中心、系统设置等高级功能。',
+      target: () => refMore.current!,
+      placement: 'right',
+    },
+    {
+      title: '版本更新 & 帮助',
+      description: '查看版本更新提醒和帮助文档。红点表示有新版本可用。',
+      target: () => refHeader.current!,
+      placement: 'bottomRight',
+    },
+    {
+      title: '开始体验！',
+      description: '现在试试点击「一键体检」吧！如需再次查看引导，可在帮助中心找到。',
+      target: () => refContent.current!,
+      placement: 'left',
+    },
+  ];
+
+  function closeTour() {
+    setTourOpen(false);
+    localStorage.setItem(TOUR_KEY, '1');
+  }
 
   const renderNavItem = (item: NavItem) => (
     <div key={item.key}
@@ -86,7 +152,7 @@ export default function AppShell() {
           <FolderOpenOutlined style={{ fontSize: 20 }} />
           <span>FileWise</span>
         </div>
-        <div className="header-actions">
+        <div className="header-actions" ref={refHeader}>
           <Tooltip title={updateInfo?.has_update ? `新版本 v${updateInfo.latest_version} 可用` : '版本更新'}>
             <Badge dot={!!updateInfo?.has_update} offset={[-4, 4]}>
               <Button type="text" size="small" icon={<BellOutlined />}
@@ -108,10 +174,10 @@ export default function AppShell() {
       <div className="app-body">
         {/* Sidebar */}
         <aside className="app-sider">
-          <div className="nav-sider-main">
+          <div className="nav-sider-main" ref={refNav}>
             {NAV_MAIN.map(renderNavItem)}
           </div>
-          <div className="nav-sider-more">
+          <div className="nav-sider-more" ref={refMore}>
             <div className="nav-section" style={{ cursor: 'pointer', userSelect: 'none' }}
               onClick={() => setShowMore(!showMore)}>
               {showMore ? '收起 ▴' : '更多 ▾'}
@@ -121,10 +187,15 @@ export default function AppShell() {
         </aside>
 
         {/* Content */}
-        <main className="app-content">
-          {PAGE_MAP[currentPage]}
+        <main className="app-content" ref={refContent}>
+          <div ref={refHero}>
+            {PAGE_MAP[currentPage]}
+          </div>
         </main>
       </div>
+
+      {/* Onboarding Tour */}
+      <Tour open={tourOpen} onClose={closeTour} steps={tourSteps} />
     </div>
   );
 }
